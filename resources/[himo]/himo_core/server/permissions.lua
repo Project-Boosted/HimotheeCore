@@ -69,13 +69,13 @@ function HimoPermissions.ensureOwner()
         return false, nil, 'No Himothee account exists yet.'
     end
 
-    local inserted = MySQL.insert.await([[
+    MySQL.insert.await([[
         INSERT IGNORE INTO `himo_account_roles`
             (`account_id`, `role_name`, `granted_by_account_id`)
         VALUES (?, 'owner', NULL)
     ]], { firstAccountId })
 
-    -- INSERT IGNORE may return 0 if another thread won the race; resolve again.
+    -- Resolve after insert so concurrent bootstrap attempts remain safe.
     local ownerAccountId = MySQL.scalar.await([[
         SELECT `account_id`
         FROM `himo_account_roles`
@@ -89,9 +89,7 @@ function HimoPermissions.ensureOwner()
     end
 
     HimoPermissions.invalidate(ownerAccountId)
-    if inserted and tonumber(inserted) and tonumber(inserted) > 0 then
-        HimoLogger.info(('Bootstrapped Himothee owner role for account %d.'):format(ownerAccountId))
-    end
+    HimoLogger.info(('Himothee owner account resolved as account %d.'):format(ownerAccountId))
     return true, ownerAccountId, 'bootstrapped'
 end
 
@@ -190,3 +188,13 @@ exports('HasAnyPermission', HimoPermissions.any)
 exports('GetRoles', HimoPermissions.getRoles)
 exports('GrantRole', HimoPermissions.grantRole)
 exports('RevokeRole', HimoPermissions.revokeRole)
+
+CreateThread(function()
+    if not HimoDatabase.awaitReady(15000) then return end
+    -- The migration has created role tables before resources start. If accounts
+    -- already exist from an earlier build, establish the first owner now.
+    local ok, accountId, state = HimoPermissions.ensureOwner()
+    if ok and state == 'bootstrapped' then
+        HimoLogger.info(('Native permission bootstrap complete for account %d.'):format(accountId))
+    end
+end)
