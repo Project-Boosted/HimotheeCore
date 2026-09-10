@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.2 - Direct Illenium first-character creator
+
+- Fixed new characters not automatically opening Illenium Appearance after identity/spawn completion.
+- Replaced reliance on the QB-only `qb-clothes:client:CreateFirstCharacter` event for automatic creation with Illenium's generic `startPlayerCustomization` export.
+- Automatic appearance creation now keys off persistent state: any loaded character without a saved Himothee appearance receives the full creator once.
+- Added a direct first-character configuration covering genetics, facial features, overlays, clothing, props and tattoos while preserving the gender-selected freemode model.
+- Added Illenium routing-bucket isolation/reset around the direct creator.
+- Direct creator saves now persist to `himo_character_appearance` and mirror into Illenium's `playerskins` table.
+- Added `/himofirstappearance` as a development recovery/test command for the direct creator.
+- Existing characters with saved appearances continue to load normally and do not reopen the creator.
+- No Himothee schema-version bump is required.
+
 ## 0.3.1 - Illenium Appearance bridge
 
 - Added `himo_qb_bridge`, a deliberately limited QB compatibility layer that provides `qb-core` for supported third-party adapters without changing HimotheeCore's native API.
