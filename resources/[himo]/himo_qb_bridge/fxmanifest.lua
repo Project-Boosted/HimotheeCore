@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_qb_bridge'
 author 'HimotheeGaming'
 description 'Limited QB compatibility bridge backed by HimotheeCore native services'
-version '0.4.0'
+version '0.4.1'
 
 lua54 'yes'
 
