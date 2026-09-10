@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_core'
 author 'HimotheeGaming'
 description 'HimotheeCore framework foundation'
-version '0.1.4'
+version '0.2.0'
 
 lua54 'yes'
 
@@ -19,6 +19,7 @@ server_scripts {
     'server/identifiers.lua',
     'server/characters.lua',
     'server/money.lua',
+    'server/player.lua',
     'server/main.lua'
 }
 
