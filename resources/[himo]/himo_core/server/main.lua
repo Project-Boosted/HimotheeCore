@@ -53,11 +53,22 @@ local function capturePlayerPosition(playerSource)
         local coords = GetEntityCoords(ped)
         if not coords then return false end
 
+        local health = nil
+        local armour = nil
+        if type(GetEntityHealth) == 'function' then
+            health = GetEntityHealth(ped)
+        end
+        if type(GetPedArmour) == 'function' then
+            armour = GetPedArmour(ped)
+        end
+
         return HimoCharacters.savePosition(playerSource, {
             x = coords.x,
             y = coords.y,
             z = coords.z,
-            heading = GetEntityHeading(ped)
+            heading = GetEntityHeading(ped),
+            health = health,
+            armour = armour
         })
     end)
 
@@ -231,13 +242,32 @@ end, false)
 
 RegisterCommand('himowhoami', function(source)
     if source == 0 then return end
-    local character = HimoPlayers[source]
+    local character = HimoPlayers[sourceKey(source)]
     if not character then
         chat(source, 'No character is currently loaded.')
         return
     end
     chat(source, ('%s %s | character #%d | %s'):format(
         character.first_name, character.last_name, character.id, character.citizen_id
+    ))
+end, false)
+
+RegisterCommand('himoplayer', function(source)
+    if source == 0 then return end
+    local player = HimoPlayerObjects[sourceKey(source)]
+    if not player then
+        chat(source, 'Player Object is not loaded.')
+        return
+    end
+
+    local job = player.Functions.GetPrimaryJob()
+    local cash = player.Functions.GetMoney('cash') or 0
+    local bank = player.Functions.GetMoney('bank') or 0
+    chat(source, ('Player Object OK | %s | cash $%d | bank $%d | job %s'):format(
+        player.Functions.GetIdentifier() or 'unknown',
+        cash,
+        bank,
+        job and job.job_name or 'none'
     ))
 end, false)
 
