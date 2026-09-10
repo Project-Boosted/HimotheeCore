@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 - Stage 1C Core Framework Services
+
+- Preserved the proven v0.3.2 multicharacter, spawn and automatic Illenium Appearance lifecycle without rewriting it.
+- Added namespaced framework/player statebags plus global version/stage/build/readiness state.
+- Added persistent metadata APIs with default hunger/thirst/stress/status values and an explicit replication whitelist.
+- Expanded the server Player Object with metadata, jobs, groups, lifecycle and save methods.
+- Added native multi-job support with grade validation, primary-job selection and per-job duty state.
+- Added generic multi-group membership for gangs, factions, clubs and crews, with grades and primary group per group type.
+- Added namespaced server/client callback wrappers backed by ox_lib.
+- Added ACE permission helpers and a framework command registry.
+- Added duplicate-account session ownership protection and auditable `himo_player_sessions` records.
+- Added txAdmin `serverShuttingDown` save-all handling in addition to periodic/disconnect saves.
+- Expanded the limited QB compatibility bridge with money, metadata, job/duty, group/gang, player lookup, permissions and QB callback transport.
+- Added `/himostatus`, `/himostage`, `/himocoretest`, `/himodebugplayer`, job/group admin commands and metadata test tooling.
+- Added `004_stage1c_core_services.sql`; required Himothee schema version is now 3.
+- Added CI coverage for all Stage 1C services and schema-v3 tables.
+
 ## 0.3.2 - Direct Illenium first-character creator
 
 - Fixed new characters not automatically opening Illenium Appearance after identity/spawn completion.
