@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_characters'
 author 'HimotheeGaming'
 description 'HimotheeCore multicharacter selection, creation and spawn lifecycle'
-version '0.2.1'
+version '0.2.2'
 
 lua54 'yes'
 
