@@ -1,6 +1,7 @@
 HimoAccounts = HimoAccounts or {}
 
 math.randomseed(os.time())
+HimoState.setFrameworkReady(false)
 
 local function sourceKey(value)
     return tonumber(value) or value
@@ -55,12 +56,8 @@ local function capturePlayerPosition(playerSource)
 
         local health = nil
         local armour = nil
-        if type(GetEntityHealth) == 'function' then
-            health = GetEntityHealth(ped)
-        end
-        if type(GetPedArmour) == 'function' then
-            armour = GetPedArmour(ped)
-        end
+        if type(GetEntityHealth) == 'function' then health = GetEntityHealth(ped) end
+        if type(GetPedArmour) == 'function' then armour = GetPedArmour(ped) end
 
         return HimoCharacters.savePosition(playerSource, {
             x = coords.x,
@@ -80,6 +77,26 @@ local function capturePlayerPosition(playerSource)
     return saved == true
 end
 
+HimoSavePlayer = capturePlayerPosition
+
+local function saveAllPlayers(reason, closeSessions)
+    local saved = 0
+    local sources = {}
+    for playerSource in pairs(HimoPlayers) do sources[#sources + 1] = playerSource end
+
+    for _, playerSource in ipairs(sources) do
+        if capturePlayerPosition(playerSource) then saved = saved + 1 end
+        if closeSessions then HimoSessions.endSession(playerSource, reason or 'server_shutdown') end
+    end
+
+    if saved > 0 or HimoConfig.Debug then
+        HimoLogger.info(('Save-all completed: %d/%d loaded character(s) saved (%s).'):format(
+            saved, #sources, reason or 'manual'
+        ))
+    end
+    return saved
+end
+
 AddEventHandler('playerConnecting', function(playerName, setKickReason, deferrals)
     local connectingSource = sourceKey(source)
     deferrals.defer()
@@ -92,7 +109,6 @@ AddEventHandler('playerConnecting', function(playerName, setKickReason, deferral
     end
 
     deferrals.update('HimotheeCore: loading account...')
-
     local accountId, reason = ensureAccountLoaded(connectingSource)
     if not accountId then
         HimoLogger.error(('Account load failed for %s: %s'):format(playerName, reason or 'unknown error'))
@@ -100,46 +116,62 @@ AddEventHandler('playerConnecting', function(playerName, setKickReason, deferral
         return
     end
 
+    deferrals.update('HimotheeCore: checking active session...')
+    local reserved, sessionOrReason = HimoSessions.reserve(connectingSource, accountId)
+    if not reserved then
+        HimoAccounts[connectingSource] = nil
+        HimoLogger.info(('Duplicate session rejected for account %s (%s).'):format(accountId, playerName))
+        deferrals.done(sessionOrReason or 'This HimotheeCore account is already connected.')
+        return
+    end
+
     HimoLogger.debug(('Connection account resolved: temporary source %s -> account %d'):format(
         connectingSource, accountId
     ))
-
     deferrals.done()
 end)
 
--- FiveM uses a temporary source during playerConnecting and assigns the final
--- in-game source when playerJoining fires. Carry the account mapping across
--- that boundary so all later framework calls use the live player source.
 AddEventHandler('playerJoining', function(oldId)
     local joinedSource = sourceKey(source)
     local temporarySource = sourceKey(oldId)
-
-    local accountId = HimoAccounts[temporarySource]
-        or HimoAccounts[tostring(oldId)]
+    local accountId = HimoAccounts[temporarySource] or HimoAccounts[tostring(oldId)]
 
     if accountId then
         HimoAccounts[joinedSource] = accountId
         HimoAccounts[temporarySource] = nil
         HimoAccounts[tostring(oldId)] = nil
+        HimoSessions.migrate(temporarySource, joinedSource)
 
         HimoLogger.debug(('Join account migrated: source %s -> %s, account %d'):format(
             temporarySource, joinedSource, accountId
         ))
+
+        CreateThread(function()
+            local activated, reason = HimoSessions.activate(joinedSource)
+            if not activated then
+                HimoLogger.error(('Session activation failed for source %s: %s'):format(joinedSource, reason or 'unknown'))
+            end
+        end)
         return
     end
 
-    -- Defensive fallback for unusual resource restarts/timing. At this point
-    -- the final player source exists, so identifiers can be resolved again.
     CreateThread(function()
         local resolved, reason = ensureAccountLoaded(joinedSource)
-        if resolved then
-            HimoLogger.debug(('Join account re-resolved for source %s -> account %d'):format(
-                joinedSource, resolved
-            ))
-        else
-            HimoLogger.error(('Could not resolve joined source %s: %s'):format(
-                joinedSource, reason or 'unknown error'
-            ))
+        if not resolved then
+            HimoLogger.error(('Could not resolve joined source %s: %s'):format(joinedSource, reason or 'unknown error'))
+            return
+        end
+
+        local reserved, reserveReason = HimoSessions.reserve(joinedSource, resolved)
+        if not reserved then
+            HimoLogger.error(('Could not reserve joined source %s: %s'):format(joinedSource, reserveReason or 'unknown error'))
+            DropPlayer(joinedSource, reserveReason or 'Duplicate HimotheeCore session.')
+            return
+        end
+
+        local activated, activateReason = HimoSessions.activate(joinedSource)
+        if not activated then
+            HimoLogger.error(('Could not activate joined source %s: %s'):format(joinedSource, activateReason or 'unknown error'))
         end
     end)
 end)
@@ -150,7 +182,6 @@ AddEventHandler('playerDropped', function(reason)
 
     if character then
         capturePlayerPosition(droppedSource)
-
         HimoDatabase.audit({
             accountId = HimoAccounts[droppedSource],
             characterId = character.id,
@@ -163,7 +194,19 @@ AddEventHandler('playerDropped', function(reason)
         HimoCharacters.unload(droppedSource)
     end
 
+    HimoSessions.endSession(droppedSource, reason or 'player_dropped')
     HimoAccounts[droppedSource] = nil
+end)
+
+AddEventHandler('txAdmin:events:serverShuttingDown', function(eventData)
+    HimoState.setFrameworkReady(false)
+    saveAllPlayers('txadmin_shutdown', true)
+end)
+
+AddEventHandler('onResourceStop', function(resourceName)
+    if resourceName ~= GetCurrentResourceName() then return end
+    HimoState.setFrameworkReady(false)
+    saveAllPlayers('resource_stop', true)
 end)
 
 RegisterNetEvent('himo_core:server:savePosition', function()
@@ -181,7 +224,6 @@ RegisterCommand('himoaccount', function(source)
         chat(source, ('Account load failed: %s'):format(reason or 'unknown error'))
         return
     end
-
     chat(source, ('Account ID: %s'):format(accountId))
 end, false)
 
@@ -199,13 +241,9 @@ RegisterCommand('himocreate', function(source, args)
     end
 
     local character, err = HimoCharacters.create(source, {
-        firstName = args[1],
-        lastName = args[2],
-        dateOfBirth = args[3],
-        gender = args[4],
-        nationality = 'British'
+        firstName = args[1], lastName = args[2], dateOfBirth = args[3],
+        gender = args[4], nationality = 'British'
     })
-
     if not character then
         chat(source, ('Create failed: %s'):format(err or 'unknown error'))
         return
@@ -218,7 +256,6 @@ end, false)
 
 RegisterCommand('himoload', function(source, args)
     if source == 0 then return end
-
     local accountId, accountReason = ensureAccountLoaded(source)
     if not accountId then
         chat(source, ('Account load failed: %s'):format(accountReason or 'unknown error'))
@@ -236,7 +273,6 @@ RegisterCommand('himoload', function(source, args)
         chat(source, ('Load failed: %s'):format(err or 'unknown error'))
         return
     end
-
     chat(source, ('Loaded %s %s (%s).'):format(character.first_name, character.last_name, character.citizen_id))
 end, false)
 
@@ -264,9 +300,7 @@ RegisterCommand('himoplayer', function(source)
     local cash = player.Functions.GetMoney('cash') or 0
     local bank = player.Functions.GetMoney('bank') or 0
     chat(source, ('Player Object OK | %s | cash $%d | bank $%d | job %s'):format(
-        player.Functions.GetIdentifier() or 'unknown',
-        cash,
-        bank,
+        player.Functions.GetIdentifier() or 'unknown', cash, bank,
         job and job.job_name or 'none'
     ))
 end, false)
@@ -321,6 +355,10 @@ exports('SavePlayerPosition', function(source)
     return capturePlayerPosition(source)
 end)
 
+exports('SaveAllPlayers', function(reason)
+    return saveAllPlayers(reason or 'export', false)
+end)
+
 exports('GetBalance', HimoMoney.getBalance)
 exports('AddMoney', HimoMoney.add)
 exports('RemoveMoney', HimoMoney.remove)
@@ -331,9 +369,16 @@ CreateThread(function()
         return
     end
 
-    HimoLogger.info(('Started %s v%s | schema %d | max characters %d'):format(
+    if not HimoSessions.initialize() then
+        HimoLogger.error('Startup health check FAILED: session service unavailable.')
+        return
+    end
+
+    HimoState.setFrameworkReady(true)
+    HimoLogger.info(('Started %s v%s | Stage %s | schema %d | max characters %d'):format(
         HimoConfig.FrameworkName,
         HimoConfig.Version,
+        HimoConfig.Stage,
         HimoDatabase.schemaVersion,
         HimoConfig.MaxCharacters
     ))
@@ -342,14 +387,7 @@ end)
 CreateThread(function()
     while true do
         Wait(HimoConfig.AutoSaveMs)
-
-        local saved = 0
-        for playerSource in pairs(HimoPlayers) do
-            if capturePlayerPosition(playerSource) then
-                saved = saved + 1
-            end
-        end
-
+        local saved = saveAllPlayers('autosave', false)
         if HimoConfig.Debug and saved > 0 then
             HimoLogger.debug(('Autosaved positions for %d loaded character(s).'):format(saved))
         end
