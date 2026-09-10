@@ -67,16 +67,15 @@ jobs:
           grep -Fq 'overextended/oxmysql/releases/latest/download/oxmysql.zip' recipe.yaml
           grep -Fq 'iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip' recipe.yaml
           grep -Fq 'database/003_stage1b_lifecycle.sql' recipe.yaml
+          grep -Fq 'database/004_stage1c_core_services.sql' recipe.yaml
           grep -Fq 'illenium-appearance/sql/playerskins.sql' recipe.yaml
           grep -Fq 'illenium-appearance/sql/player_outfits.sql' recipe.yaml
-          grep -Fq 'illenium-appearance/sql/player_outfit_codes.sql' recipe.yaml
-          grep -Fq 'illenium-appearance/sql/management_outfits.sql' recipe.yaml
           if grep -Fq './tmp/cfx/[system]/' recipe.yaml; then
             echo 'Recipe contains a fragile CFX system-resource move path.' >&2
             exit 1
           fi
 
-      - name: Validate Qbox-style lifecycle ownership
+      - name: Validate lifecycle ownership
         shell: bash
         run: |
           set -euo pipefail
@@ -89,6 +88,7 @@ jobs:
           grep -Fxq 'ensure baseevents' server.cfg
           grep -Fxq 'ensure ox_lib' server.cfg
           grep -Fxq 'ensure oxmysql' server.cfg
+          grep -Fq 'txAdmin:events:serverShuttingDown' 'resources/[himo]/himo_core/server/main.lua'
 
           CHAR_MANIFEST='resources/[himo]/himo_characters/fxmanifest.lua'
           if grep -Fq 'ui_page' "$CHAR_MANIFEST"; then
@@ -96,30 +96,49 @@ jobs:
             exit 1
           fi
 
-      - name: Validate Illenium compatibility bridge
+      - name: Validate Stage 1C services
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORE='resources/[himo]/himo_core'
+          test -f "$CORE/server/state.lua"
+          test -f "$CORE/server/metadata.lua"
+          test -f "$CORE/server/jobs.lua"
+          test -f "$CORE/server/groups.lua"
+          test -f "$CORE/server/callbacks.lua"
+          test -f "$CORE/client/callbacks.lua"
+          test -f "$CORE/server/sessions.lua"
+          test -f "$CORE/server/permissions.lua"
+          test -f "$CORE/server/commands.lua"
+          test -f "$CORE/server/admin.lua"
+          grep -Fq "@ox_lib/init.lua" "$CORE/fxmanifest.lua"
+          grep -Fq "GlobalState['himothee_core:ready']" "$CORE/server/state.lua"
+          grep -Fq "HimoSessions.reserve" "$CORE/server/main.lua"
+          grep -Fq "exports('SetMetadata'" "$CORE/server/metadata.lua"
+          grep -Fq "exports('AddJob'" "$CORE/server/jobs.lua"
+          grep -Fq "exports('AddGroup'" "$CORE/server/groups.lua"
+          grep -Fq "exports('HasPermission'" "$CORE/server/permissions.lua"
+          grep -Fq "exports('RegisterServerCallback'" "$CORE/server/callbacks.lua"
+          grep -Fq "exports('AwaitServerCallback'" "$CORE/client/callbacks.lua"
+
+      - name: Validate Illenium and QB compatibility bridge
         shell: bash
         run: |
           set -euo pipefail
           BRIDGE='resources/[himo]/himo_qb_bridge/fxmanifest.lua'
           test -f "$BRIDGE"
-          test -f 'resources/[himo]/himo_qb_bridge/client/main.lua'
-          test -f 'resources/[himo]/himo_qb_bridge/server/main.lua'
           grep -Fq "provide 'qb-core'" "$BRIDGE"
+          grep -Fq '@ox_lib/init.lua' "$BRIDGE"
           grep -Fq '__cfx_export_qb-core_' 'resources/[himo]/himo_qb_bridge/client/main.lua'
           grep -Fq '__cfx_export_qb-core_' 'resources/[himo]/himo_qb_bridge/server/main.lua'
-          grep -Fq "qb-clothes:client:CreateFirstCharacter" 'resources/[himo]/himo_appearance/client/main.lua'
-          grep -Fq "illenium-appearance:server:saveAppearance" 'resources/[himo]/himo_appearance/server/main.lua'
+          grep -Fq 'QBCore:Server:TriggerCallback' 'resources/[himo]/himo_qb_bridge/server/main.lua'
+          grep -Fq 'QBCore:Client:TriggerCallback' 'resources/[himo]/himo_qb_bridge/client/main.lua'
+          grep -Fq 'startPlayerCustomization' 'resources/[himo]/himo_appearance/client/auto_creator.lua'
 
-      - name: Validate Stage 1B resource wiring
+      - name: Validate resource start order
         shell: bash
         run: |
           set -euo pipefail
-          test -f 'resources/[himo]/himo_core/server/lifecycle.lua'
-          test -f 'resources/[himo]/himo_core/client/lifecycle.lua'
-          test -f 'resources/[himo]/himo_characters/client/main.lua'
-          test -f 'resources/[himo]/himo_spawn/client/main.lua'
-          test -f 'resources/[himo]/himo_appearance/client/main.lua'
-
           OXLIB_LINE=$(grep -n '^ensure ox_lib$' server.cfg | cut -d: -f1)
           OXMYSQL_LINE=$(grep -n '^ensure oxmysql$' server.cfg | cut -d: -f1)
           CORE_LINE=$(grep -n '^ensure himo_core$' server.cfg | cut -d: -f1)
@@ -149,6 +168,7 @@ jobs:
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_spawn/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_appearance/fxmanifest.lua'
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
+          grep -Fq "HimoConfig.RequiredSchemaVersion = 3" 'resources/[himo]/himo_core/shared/config.lua'
           echo "Version $VERSION is consistent."
 
       - name: Validate SQL on MariaDB
@@ -164,4 +184,6 @@ jobs:
           mariadb -h 127.0.0.1 -uroot himothee_ci < database/001_schema.sql
           mariadb -h 127.0.0.1 -uroot himothee_ci < database/002_seed.sql
           mariadb -h 127.0.0.1 -uroot himothee_ci < database/003_stage1b_lifecycle.sql
-          mariadb -h 127.0.0.1 -uroot -e "USE himothee_ci; SELECT MAX(version) AS schema_version FROM himo_schema_migrations; SHOW CREATE TABLE himo_character_appearance;"
+          mariadb -h 127.0.0.1 -uroot himothee_ci < database/004_stage1c_core_services.sql
+          mariadb -h 127.0.0.1 -uroot -e "USE himothee_ci; SELECT MAX(version) AS schema_version FROM himo_schema_migrations; SHOW CREATE TABLE himo_player_sessions; SHOW CREATE TABLE himo_groups; SHOW CREATE TABLE himo_character_groups;"
+          test "$(mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e 'SELECT MAX(version) FROM himo_schema_migrations')" = "3"
