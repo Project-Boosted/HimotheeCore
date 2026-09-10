@@ -15,30 +15,21 @@ function HimoIdentifiers.collect(source)
     for _, identifier in ipairs(GetPlayerIdentifiers(source)) do
         local provider = identifier:match('^([^:]+):')
         if provider then
-            output[#output + 1] = {
-                provider = provider,
-                identifier = identifier
-            }
+            output[#output + 1] = { provider = provider, identifier = identifier }
         end
     end
 
     table.sort(output, function(a, b)
         return (preferredOrder[a.provider] or 99) < (preferredOrder[b.provider] or 99)
     end)
-
     return output
 end
 
 function HimoIdentifiers.ensureAccount(source)
     local identifiers = HimoIdentifiers.collect(source)
-    if #identifiers == 0 then
-        return nil, 'No usable FiveM identifier was found.'
-    end
+    if #identifiers == 0 then return nil, 'No usable FiveM identifier was found.' end
 
     local resolvedAccountId = nil
-
-    -- Resolve against every known identifier. If two identifiers unexpectedly point
-    -- at different accounts we reject the session instead of silently merging them.
     for _, item in ipairs(identifiers) do
         local existing = MySQL.scalar.await([[
             SELECT `account_id`
@@ -50,9 +41,7 @@ function HimoIdentifiers.ensureAccount(source)
         if existing then
             existing = tonumber(existing)
             if resolvedAccountId and resolvedAccountId ~= existing then
-                HimoLogger.error(('Identifier collision for source %d (%d vs %d).'):format(
-                    source, resolvedAccountId, existing
-                ))
+                HimoLogger.error(('Identifier collision for source %d (%d vs %d).'):format(source, resolvedAccountId, existing))
                 return nil, 'Your account identifiers are linked to conflicting accounts. Contact server staff.'
             end
             resolvedAccountId = existing
@@ -60,12 +49,14 @@ function HimoIdentifiers.ensureAccount(source)
     end
 
     local playerName = GetPlayerName(source)
+    local created = false
 
     if not resolvedAccountId then
         resolvedAccountId = MySQL.insert.await([[
             INSERT INTO `himo_accounts` (`display_name`, `last_seen_name`, `last_seen_at`)
             VALUES (?, ?, CURRENT_TIMESTAMP)
         ]], { playerName, playerName })
+        created = true
     else
         MySQL.update.await([[
             UPDATE `himo_accounts`
@@ -74,12 +65,18 @@ function HimoIdentifiers.ensureAccount(source)
         ]], { playerName, resolvedAccountId })
     end
 
+    resolvedAccountId = tonumber(resolvedAccountId)
+
     for _, item in ipairs(identifiers) do
         MySQL.query.await([[
             INSERT INTO `himo_identifiers` (`account_id`, `provider`, `identifier`, `last_seen_at`)
             VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             ON DUPLICATE KEY UPDATE `last_seen_at` = CURRENT_TIMESTAMP
         ]], { resolvedAccountId, item.provider, item.identifier })
+    end
+
+    if created and HimoPermissions and HimoPermissions.bootstrapOwner then
+        HimoPermissions.bootstrapOwner(resolvedAccountId)
     end
 
     local account = MySQL.single.await([[
@@ -93,5 +90,5 @@ function HimoIdentifiers.ensureAccount(source)
         return nil, account.ban_reason or 'This account is banned from the server.'
     end
 
-    return tonumber(resolvedAccountId)
+    return resolvedAccountId
 end
