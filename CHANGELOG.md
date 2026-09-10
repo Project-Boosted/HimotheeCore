@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1 - Stage 1B spawn black-screen fix
+
+- Replaced selected-character `spawnmanager:spawnPlayer()` usage with a bounded native spawn path so a stale CFX `spawnLock` cannot strand the client on a black screen.
+- Added model-load and collision-streaming timeouts.
+- Added a 12-second emergency spawn watchdog that restores visibility and fades the screen back in if the spawn sequence does not complete.
+- Added `/himounblack` as a temporary Stage 1B recovery/debug command.
+- Kept `spawnmanager` only for suppressing the stock autospawn path.
+- No SQL migration is required.
+
 ## 0.2.0 - Stage 1B character and player lifecycle
 
 - Added `himo_characters` as a dedicated multicharacter/login resource.
