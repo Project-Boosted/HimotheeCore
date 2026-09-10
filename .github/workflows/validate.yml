@@ -45,23 +45,6 @@ jobs:
             luac -p "$file"
           done < <(find resources -type f -name '*.lua' -print0)
 
-      - name: Validate NUI JavaScript syntax
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check 'resources/[himo]/himo_characters/web/app.js'
-
-      - name: Validate NUI closed-state transparency
-        shell: bash
-        run: |
-          set -euo pipefail
-          CSS='resources/[himo]/himo_characters/web/style.css'
-          grep -Fq 'html {' "$CSS"
-          grep -Fq 'background: transparent !important;' "$CSS"
-          grep -Fq 'body:not(.hidden) {' "$CSS"
-          grep -Fq 'body.hidden {' "$CSS"
-          grep -Fq 'display: none !important;' "$CSS"
-
       - name: Validate recipe YAML
         shell: bash
         run: |
@@ -74,34 +57,72 @@ jobs:
           print('recipe.yaml OK')
           PY
 
-      - name: Validate resilient CFX deployment layout
+      - name: Validate txAdmin dependencies and migrations
         shell: bash
         run: |
           set -euo pipefail
           grep -Fq 'src: https://github.com/citizenfx/cfx-server-data' recipe.yaml
           grep -Fq 'subpath: resources' recipe.yaml
           grep -Fq 'dest: ./resources/[cfx-default]' recipe.yaml
+          grep -Fq 'overextended/ox_lib/releases/latest/download/ox_lib.zip' recipe.yaml
+          grep -Fq 'overextended/oxmysql/releases/latest/download/oxmysql.zip' recipe.yaml
+          grep -Fq 'database/003_stage1b_lifecycle.sql' recipe.yaml
           if grep -Fq './tmp/cfx/[system]/' recipe.yaml; then
             echo 'Recipe contains a fragile CFX system-resource move path.' >&2
             exit 1
           fi
 
+      - name: Validate Qbox-style lifecycle ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fxq 'stop basic-gamemode' server.cfg
+          if grep -Fxq 'ensure basic-gamemode' server.cfg; then
+            echo 'basic-gamemode must not own autospawn while HimotheeCore is active.' >&2
+            exit 1
+          fi
+          grep -Fxq 'ensure spawnmanager' server.cfg
+          grep -Fxq 'ensure baseevents' server.cfg
+          grep -Fxq 'ensure ox_lib' server.cfg
+          grep -Fxq 'ensure oxmysql' server.cfg
+
+          CHAR_MANIFEST='resources/[himo]/himo_characters/fxmanifest.lua'
+          if grep -Fq 'ui_page' "$CHAR_MANIFEST"; then
+            echo 'himo_characters must not use a fullscreen NUI in the critical login path.' >&2
+            exit 1
+          fi
+          test ! -f 'resources/[himo]/himo_characters/web/index.html'
+          test ! -f 'resources/[himo]/himo_characters/web/style.css'
+          test ! -f 'resources/[himo]/himo_characters/web/app.js'
+
       - name: Validate Stage 1B resource wiring
         shell: bash
         run: |
           set -euo pipefail
+          test -f 'resources/[himo]/himo_core/server/lifecycle.lua'
+          test -f 'resources/[himo]/himo_core/client/lifecycle.lua'
           test -f 'resources/[himo]/himo_characters/fxmanifest.lua'
           test -f 'resources/[himo]/himo_characters/client/main.lua'
           test -f 'resources/[himo]/himo_characters/server/main.lua'
-          test -f 'resources/[himo]/himo_characters/web/index.html'
-          test -f 'resources/[himo]/himo_characters/web/style.css'
-          test -f 'resources/[himo]/himo_characters/web/app.js'
-          grep -Fq 'set resources_useSystemChat true' server.cfg
-          grep -Fq 'ensure himo_core' server.cfg
-          grep -Fq 'ensure himo_characters' server.cfg
+          test -f 'resources/[himo]/himo_spawn/fxmanifest.lua'
+          test -f 'resources/[himo]/himo_spawn/client/main.lua'
+          test -f 'resources/[himo]/himo_appearance/fxmanifest.lua'
+          test -f 'resources/[himo]/himo_appearance/client/main.lua'
+          test -f 'resources/[himo]/himo_appearance/server/main.lua'
+
+          OXLIB_LINE=$(grep -n '^ensure ox_lib$' server.cfg | cut -d: -f1)
+          OXMYSQL_LINE=$(grep -n '^ensure oxmysql$' server.cfg | cut -d: -f1)
           CORE_LINE=$(grep -n '^ensure himo_core$' server.cfg | cut -d: -f1)
+          APPEARANCE_LINE=$(grep -n '^ensure himo_appearance$' server.cfg | cut -d: -f1)
+          SPAWN_LINE=$(grep -n '^ensure himo_spawn$' server.cfg | cut -d: -f1)
           CHAR_LINE=$(grep -n '^ensure himo_characters$' server.cfg | cut -d: -f1)
-          test "$CORE_LINE" -lt "$CHAR_LINE"
+
+          test "$OXLIB_LINE" -lt "$CORE_LINE"
+          test "$OXMYSQL_LINE" -lt "$CORE_LINE"
+          test "$CORE_LINE" -lt "$APPEARANCE_LINE"
+          test "$CORE_LINE" -lt "$SPAWN_LINE"
+          test "$APPEARANCE_LINE" -lt "$CHAR_LINE"
+          test "$SPAWN_LINE" -lt "$CHAR_LINE"
 
       - name: Validate release version consistency
         shell: bash
@@ -111,6 +132,8 @@ jobs:
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_core/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_characters/fxmanifest.lua'
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_spawn/fxmanifest.lua'
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_appearance/fxmanifest.lua'
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           echo "Version $VERSION is consistent."
 
@@ -126,4 +149,5 @@ jobs:
           done
           mariadb -h 127.0.0.1 -uroot himothee_ci < database/001_schema.sql
           mariadb -h 127.0.0.1 -uroot himothee_ci < database/002_seed.sql
-          mariadb -h 127.0.0.1 -uroot -e "USE himothee_ci; SHOW TABLES;"
+          mariadb -h 127.0.0.1 -uroot himothee_ci < database/003_stage1b_lifecycle.sql
+          mariadb -h 127.0.0.1 -uroot -e "USE himothee_ci; SELECT MAX(version) AS schema_version FROM himo_schema_migrations; SHOW CREATE TABLE himo_character_appearance;"
