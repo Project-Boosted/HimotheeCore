@@ -10,15 +10,9 @@ end
 
 function HimoState.setPlayer(source, key, value, replicated)
     source = tonumber(source) or source
-    if not validKey(key) then
-        return false, 'State key must be a namespaced himo:* key.'
-    end
-
+    if not validKey(key) then return false, 'State key must be a namespaced himo:* key.' end
     local player = Player(source)
-    if not player or not player.state then
-        return false, 'Player state bag is unavailable.'
-    end
-
+    if not player or not player.state then return false, 'Player state bag is unavailable.' end
     player.state:set(key, value, replicated ~= false)
     return true
 end
@@ -53,13 +47,13 @@ function HimoState.clearCharacter(source)
     HimoState.setPlayer(source, 'himo:playerLoaded', false)
     HimoState.setPlayer(source, 'himo:job', nil)
     HimoState.setPlayer(source, 'himo:onDuty', false)
+    HimoState.setPlayer(source, 'himo:group', nil)
     HimoState.setPlayer(source, 'himo:metadata', {})
 end
 
 AddEventHandler('himo_core:server:characterLoaded', function(source, character)
     HimoState.syncCharacter(source, character)
 end)
-
 AddEventHandler('himo_core:server:characterUnloaded', function(source)
     HimoState.clearCharacter(source)
 end)
