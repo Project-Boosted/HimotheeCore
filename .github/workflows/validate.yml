@@ -46,7 +46,19 @@ jobs:
           done < <(find resources -type f -name '*.lua' -print0)
 
       - name: Validate recipe YAML
-        run: python3 -c "import yaml; yaml.safe_load(open('recipe.yaml', encoding='utf-8')); print('recipe.yaml OK')"
+        run: python3 -c "import yaml; data=yaml.safe_load(open('recipe.yaml', encoding='utf-8')); assert data.get('$engine') == 3; assert isinstance(data.get('tasks'), list) and data['tasks']; print('recipe.yaml OK')"
+
+      - name: Validate resilient CFX deployment layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'src: https://github.com/citizenfx/cfx-server-data' recipe.yaml
+          grep -Fq 'subpath: resources' recipe.yaml
+          grep -Fq 'dest: ./resources/[cfx-default]' recipe.yaml
+          if grep -Fq './tmp/cfx/[system]/' recipe.yaml; then
+            echo 'Recipe contains a fragile CFX system-resource move path.' >&2
+            exit 1
+          fi
 
       - name: Validate release version consistency
         shell: bash
@@ -55,6 +67,7 @@ jobs:
           VERSION="$(tr -d '\r\n' < VERSION)"
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_core/fxmanifest.lua'
+          grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           echo "Version $VERSION is consistent."
 
       - name: Validate SQL on MariaDB
