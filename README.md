@@ -1,6 +1,6 @@
-# HimotheeCore v0.1.0 — Stage 1 Foundation
+# HimotheeCore v0.1.2 — Stage 1 Foundation
 
-This is the first development package for the HimotheeCore FiveM framework.
+This is the first development stage of the HimotheeCore FiveM framework.
 
 ## Stage 1 goals
 
@@ -23,13 +23,13 @@ Use this exact **raw recipe URL** in txAdmin Server Deployer:
 
     https://raw.githubusercontent.com/Project-Boosted/HimotheeCore/main/recipe.yaml
 
-Do **not** paste the repository homepage URL (`https://github.com/Project-Boosted/HimotheeCore`) into the Recipe URL box. The repository page is HTML, so txAdmin will report it as `invalid yaml`.
+Do **not** paste the repository homepage URL into the Recipe URL box. The repository page is HTML, so txAdmin will report it as `invalid yaml`.
 
-The recipe itself downloads HimotheeCore from the canonical repository:
+### v0.1.2 bootstrap change
 
-    https://github.com/Project-Boosted/HimotheeCore
+The recipe now downloads the complete current CFX `resources` tree into `resources/[cfx-default]`, following the deployment pattern used by the official CFX/Qbox recipes. It no longer moves individual upstream folders such as `sessionmanager`, which prevents deployment failures when CFX reorganises system resources.
 
-New deployments download the current `main` branch. Existing production servers are intentionally not silently auto-updated; framework/database updates should be applied as explicit releases.
+New deployments download the current `main` branch. Existing deployed servers are intentionally not silently overwritten; framework/database updates should be applied as explicit development redeploys or releases.
 
 ## Database
 
@@ -62,6 +62,5 @@ This package is a foundation build. It is intended for development/testing, not 
 ## GitHub automation
 
 - Every push or pull request to `main` runs `.github/workflows/validate.yml`.
-- Validation checks Lua syntax, recipe YAML, version consistency and imports the SQL schema into a disposable MariaDB database.
+- Validation checks Lua syntax, recipe YAML, release version consistency and imports the SQL schema into a disposable MariaDB database.
 - Tags matching `v*` run `.github/workflows/release.yml`, build a clean ZIP, calculate SHA-256 and publish a GitHub Release automatically.
-- `VERSION`, `recipe.yaml` and `himo_core/fxmanifest.lua` are checked to ensure their release versions match.
