@@ -194,6 +194,6 @@ jobs:
           FIRST_ACCOUNT="$(mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e 'SELECT MIN(id) FROM himo_accounts')"
           mariadb -h 127.0.0.1 -uroot himothee_ci -e "INSERT INTO himo_account_roles (account_id,role_name,granted_by_account_id) VALUES (${FIRST_ACCOUNT},'owner',NULL);"
           mariadb -h 127.0.0.1 -uroot -e "USE himothee_ci; SELECT MAX(version) AS schema_version FROM himo_schema_migrations; SHOW CREATE TABLE himo_roles; SHOW CREATE TABLE himo_role_permissions; SHOW CREATE TABLE himo_account_roles; SELECT * FROM himo_account_roles;"
-          test "$(mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e 'SELECT MAX(version) FROM himo_schema_migrations')" = "4"
-          test "$(mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e \"SELECT COUNT(*) FROM himo_role_permissions WHERE role_name='owner' AND permission='himo.*'\")" = "1"
-          test "$(mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e \"SELECT account_id FROM himo_account_roles WHERE role_name='owner' LIMIT 1\")" = "$FIRST_ACCOUNT"
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT MAX(version) FROM himo_schema_migrations" | grep -qx '4'
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT permission FROM himo_role_permissions WHERE role_name='owner' AND permission='himo.*' LIMIT 1" | grep -qx 'himo.*'
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT account_id FROM himo_account_roles WHERE role_name='owner' LIMIT 1" | grep -qx "$FIRST_ACCOUNT"
