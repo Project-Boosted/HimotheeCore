@@ -70,6 +70,11 @@ jobs:
           grep -Fq 'database/004_stage1c_core_services.sql' recipe.yaml
           grep -Fq 'illenium-appearance/sql/playerskins.sql' recipe.yaml
           grep -Fq 'illenium-appearance/sql/player_outfits.sql' recipe.yaml
+          grep -Fq '{{addPrincipalsMaster}}' server.cfg
+          grep -Fxq 'exec permissions.cfg' server.cfg
+          grep -Fq 'add_ace group.admin himo.admin allow' permissions.cfg
+          grep -Fq 'add_ace group.admin himo.staff allow' permissions.cfg
+          grep -Fq 'add_ace group.admin himo.dev allow' permissions.cfg
           if grep -Fq './tmp/cfx/[system]/' recipe.yaml; then
             echo 'Recipe contains a fragile CFX system-resource move path.' >&2
             exit 1
