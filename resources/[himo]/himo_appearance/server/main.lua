@@ -44,7 +44,30 @@ local function fetchOwnedAppearance(source, characterId)
     return appearance
 end
 
-local function persistAppearance(source, appearance)
+local function mirrorIlleniumSkin(source, appearance, encoded)
+    local character = exports['himo_core']:GetCharacter(source)
+    if not character or not character.citizen_id then return false end
+
+    local citizenId = tostring(character.citizen_id)
+    local model = tostring(appearance.model or 'mp_m_freemode_01')
+
+    local ok, err = pcall(function()
+        MySQL.update.await('UPDATE `playerskins` SET `active` = 0 WHERE `citizenid` = ?', { citizenId })
+        MySQL.update.await('DELETE FROM `playerskins` WHERE `citizenid` = ? AND `model` = ?', { citizenId, model })
+        MySQL.insert.await([[
+            INSERT INTO `playerskins` (`citizenid`, `model`, `skin`, `active`)
+            VALUES (?, ?, ?, 1)
+        ]], { citizenId, model, encoded })
+    end)
+
+    if not ok and GetConvarInt('himo:debug', 0) == 1 then
+        print(('[HimotheeAppearance] Illenium playerskins mirror failed: %s'):format(err))
+    end
+
+    return ok
+end
+
+local function persistAppearance(source, appearance, mirrorIllenium)
     local characterId = exports['himo_core']:GetCharacterId(source)
     if not characterId then
         return false, 'No HimotheeCore character is loaded.'
@@ -75,6 +98,10 @@ local function persistAppearance(source, appearance)
             `updated_at` = CURRENT_TIMESTAMP
     ]], { characterId, model, encoded })
 
+    if mirrorIllenium then
+        mirrorIlleniumSkin(source, appearance, encoded)
+    end
+
     return true
 end
 
@@ -91,15 +118,17 @@ lib.callback.register('himo_appearance:server:getCurrent', function(source)
 end)
 
 lib.callback.register('himo_appearance:server:save', function(source, appearance)
-    return persistAppearance(source, appearance)
+    -- Saves initiated by Himothee's direct Illenium creator also update
+    -- Illenium's own playerskins table for downstream shop/outfit compatibility.
+    return persistAppearance(source, appearance, true)
 end)
 
--- Illenium owns its own playerskins table through the QB adapter. Listen to the
--- same save event and mirror the complete appearance JSON into Himothee's own
--- character table so multicharacter previews never depend on a third-party DB.
+-- Illenium owns its own playerskins table when its QB adapter handles the save.
+-- Listen to that same save event and mirror the complete appearance JSON into
+-- Himothee's own character table without writing playerskins a second time.
 RegisterNetEvent('illenium-appearance:server:saveAppearance', function(appearance)
     local source = source
-    local ok, reason = persistAppearance(source, appearance)
+    local ok, reason = persistAppearance(source, appearance, false)
     if not ok and GetConvarInt('himo:debug', 0) == 1 then
         print(('[HimotheeAppearance] Illenium mirror skipped: %s'):format(reason or 'unknown reason'))
     end
