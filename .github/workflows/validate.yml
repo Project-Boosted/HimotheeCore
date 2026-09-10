@@ -1,0 +1,72 @@
+name: Validate HimotheeCore
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: himothee_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 mariadb-client python3-pip
+          python3 -m pip install --break-system-packages pyyaml
+
+      - name: Validate Lua syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            luac -p "$file"
+          done < <(find resources -type f -name '*.lua' -print0)
+
+      - name: Validate recipe YAML
+        run: python3 -c "import yaml; yaml.safe_load(open('recipe.yaml', encoding='utf-8')); print('recipe.yaml OK')"
+
+      - name: Validate release version consistency
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          grep -Fq "version: $VERSION" recipe.yaml
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_core/fxmanifest.lua'
+          echo "Version $VERSION is consistent."
+
+      - name: Validate SQL on MariaDB
+        shell: bash
+        env:
+          MYSQL_PWD: root
+        run: |
+          set -euo pipefail
+          for i in {1..30}; do
+            if mariadb-admin ping -h 127.0.0.1 -uroot --silent; then break; fi
+            sleep 2
+          done
+          mariadb -h 127.0.0.1 -uroot himothee_ci < database/001_schema.sql
+          mariadb -h 127.0.0.1 -uroot himothee_ci < database/002_seed.sql
+          mariadb -h 127.0.0.1 -uroot -e "USE himothee_ci; SHOW TABLES;"
