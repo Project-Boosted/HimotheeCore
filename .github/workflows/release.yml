@@ -23,6 +23,8 @@ jobs:
           test "${GITHUB_REF_NAME}" = "v${VERSION}"
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_core/fxmanifest.lua'
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_characters/fxmanifest.lua'
+          grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
 
       - name: Build release ZIP
         shell: bash
