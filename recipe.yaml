@@ -1,0 +1,84 @@
+$engine: 3
+$onesync: on
+
+name: HimotheeCore
+version: 0.1.0
+author: HimotheeGaming
+description: Stage 1 foundation for the HimotheeCore progression-focused FiveM framework.
+
+tasks:
+  # Base FiveM resources
+  - action: download_github
+    src: https://github.com/citizenfx/cfx-server-data
+    ref: master
+    subpath: resources/[managers]/mapmanager
+    dest: ./resources/[cfx]/mapmanager
+
+  - action: download_github
+    src: https://github.com/citizenfx/cfx-server-data
+    ref: master
+    subpath: resources/[managers]/spawnmanager
+    dest: ./resources/[cfx]/spawnmanager
+
+  - action: download_github
+    src: https://github.com/citizenfx/cfx-server-data
+    ref: master
+    subpath: resources/[managers]/sessionmanager
+    dest: ./resources/[cfx]/sessionmanager
+
+  - action: download_github
+    src: https://github.com/citizenfx/cfx-server-data
+    ref: master
+    subpath: resources/[system]/chat
+    dest: ./resources/[cfx]/chat
+
+  - action: download_github
+    src: https://github.com/citizenfx/cfx-server-data
+    ref: master
+    subpath: resources/[system]/hardcap
+    dest: ./resources/[cfx]/hardcap
+
+  # Database dependency - release archive includes the built resource.
+  - action: download_file
+    url: https://github.com/overextended/oxmysql/releases/latest/download/oxmysql.zip
+    path: ./tmp/oxmysql.zip
+
+  - action: unzip
+    src: ./tmp/oxmysql.zip
+    dest: ./resources/[dependencies]
+
+  # HimotheeCore source.
+  - action: download_github
+    src: https://github.com/Project-Boosted/HimotheeCore
+    ref: main
+    dest: ./tmp/himotheecore
+
+  - action: move_path
+    src: ./tmp/himotheecore/resources/[himo]
+    dest: ./resources/[himo]
+
+  - action: move_path
+    src: ./tmp/himotheecore/server.cfg
+    dest: ./server.cfg
+
+  - action: move_path
+    src: ./tmp/himotheecore/permissions.cfg
+    dest: ./permissions.cfg
+
+  # txAdmin supplies DB credentials/context here.
+  - action: connect_database
+
+  - action: query_database
+    file: ./tmp/himotheecore/database/001_schema.sql
+
+  - action: query_database
+    file: ./tmp/himotheecore/database/002_seed.sql
+
+  # Replace txAdmin context variables in server.cfg.
+  - action: replace_string
+    mode: all_vars
+    file:
+      - ./server.cfg
+
+  - action: remove_path
+    path: ./tmp
