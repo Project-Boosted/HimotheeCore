@@ -1,4 +1,4 @@
-# HimotheeCore v0.2.0 — Stage 1B
+# HimotheeCore v0.2.1 — Stage 1B
 
 HimotheeCore is a progression-focused FiveM framework being built as a modular alternative to existing monolithic RP frameworks.
 
@@ -26,7 +26,8 @@ HimotheeCore is a progression-focused FiveM framework being built as a modular a
 - existing-character cards
 - character creation form
 - account-safe character selection
-- controlled spawn through `spawnmanager`
+- Himothee-owned native character spawn path with bounded model/collision waits
+- black-screen watchdog/recovery path
 - return to the character's last saved position
 - configurable default spawn for new characters
 - periodic server-authoritative position autosave
@@ -34,6 +35,7 @@ HimotheeCore is a progression-focused FiveM framework being built as a modular a
 - Stage 1B Player Object/API
 - synchronized client character/money state
 - `/switchcharacter` development command
+- `/himounblack` temporary black-screen recovery command
 
 ## txAdmin recipe
 
@@ -54,7 +56,7 @@ Fresh installs run:
 
 The schema version is recorded in `himo_schema_migrations`.
 
-v0.2.0 does not require a schema migration; it uses the Stage 1A character metadata/position tables already installed.
+v0.2.1 does not require a schema migration; it uses the Stage 1A character metadata/position tables already installed.
 
 ## Character flow
 
@@ -67,7 +69,7 @@ On join:
       -> character selector
       -> create or choose character
       -> HimotheeCore character load
-      -> spawnmanager spawn
+      -> bounded native spawn
       -> last saved position/default spawn
       -> active Player Object
 
@@ -77,7 +79,9 @@ Temporary debug commands remain available while Stage 1 is under development:
 - `/himocreate Firstname Lastname YYYY-MM-DD gender`
 - `/himoload <characterId>`
 - `/himowhoami`
+- `/himoplayer`
 - `/switchcharacter`
+- `/himounblack`
 
 ## Resource start order
 
