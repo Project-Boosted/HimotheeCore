@@ -3,8 +3,8 @@ game 'gta5'
 
 name 'himo_appearance'
 author 'HimotheeGaming'
-description 'HimotheeCore standalone appearance and clothing persistence'
-version '0.3.0'
+description 'HimotheeCore appearance persistence with Illenium bridge'
+version '0.3.1'
 
 lua54 'yes'
 
@@ -20,5 +20,7 @@ server_scripts {
 dependencies {
     'ox_lib',
     'oxmysql',
-    'himo_core'
+    'himo_core',
+    'himo_qb_bridge',
+    'illenium-appearance'
 }
