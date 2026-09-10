@@ -2,18 +2,28 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.2.2
+version: 0.3.0
 author: HimotheeGaming
-description: Stage 1B character and player lifecycle for the HimotheeCore progression-focused FiveM framework.
+description: Qbox-style Stage 1B lifecycle refactor for the HimotheeCore progression-focused FiveM framework.
 
 tasks:
-  # Install the current Cfx.re default resources as one tree. This follows the
-  # official CFX/Qbox txAdmin deployment pattern and avoids fragile folder moves.
+  # Current Cfx.re default resources. Keep the whole tree intact so upstream
+  # folder changes do not break deployment.
   - action: download_github
     src: https://github.com/citizenfx/cfx-server-data
     ref: master
     subpath: resources
     dest: ./resources/[cfx-default]
+
+  # ox_lib provides the non-blocking context/input UI used by multicharacter,
+  # spawn selection and the Stage 1B clothing editor.
+  - action: download_file
+    url: https://github.com/overextended/ox_lib/releases/latest/download/ox_lib.zip
+    path: ./tmp/ox_lib.zip
+
+  - action: unzip
+    src: ./tmp/ox_lib.zip
+    dest: ./resources/[dependencies]
 
   # Database dependency.
   - action: download_file
@@ -50,6 +60,9 @@ tasks:
 
   - action: query_database
     file: ./tmp/himotheecore/database/002_seed.sql
+
+  - action: query_database
+    file: ./tmp/himotheecore/database/003_stage1b_lifecycle.sql
 
   # Replace txAdmin template variables in server.cfg.
   - action: replace_string
