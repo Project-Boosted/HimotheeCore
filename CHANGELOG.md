@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0 - Stage 1B Qbox-style lifecycle refactor
+
+- Rebuilt the character/login lifecycle after studying current Qbox core/spawn behaviour.
+- `basic-gamemode` is now explicitly stopped so stock autospawn cannot compete with HimotheeCore.
+- Added `ox_lib` as a txAdmin-installed dependency and moved character creation/selection to context/input UI.
+- Removed the old fullscreen `himo_characters` HTML/CSS/JavaScript NUI from the critical login path.
+- Added solo tutorial-session character selection with an in-world preview ped and scripted camera.
+- Reworked character create/load into server-authoritative `ox_lib` callbacks.
+- Added `himo_spawn` as a separate spawn-selection resource with Last Location, Legion Square, LSIA, Sandy Shores and Paleto Bay choices.
+- Added separate character-loaded versus player-world-ready lifecycle states.
+- Added explicit tutorial-session shutdown on final player load.
+- Added `himo_appearance` with Himothee-owned model/component/prop persistence and a standalone `ox_lib` clothing editor.
+- Added `himo_character_appearance` and schema migration version 2.
+- Added bounded spawnmanager fallback rather than allowing a missing callback to strand login.
+- Added CI guards preventing `ensure basic-gamemode` and fullscreen character NUI from returning.
+- Existing account, character, money, job and position data remains compatible.
+
 ## 0.2.2 - Stage 1B NUI black-overlay fix
 
 - Fixed the character selector NUI continuing to paint an opaque dark root layer after the selector closed.
