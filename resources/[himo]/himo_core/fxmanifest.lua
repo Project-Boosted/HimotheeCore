@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_core'
 author 'HimotheeGaming'
 description 'HimotheeCore framework foundation'
-version '0.2.2'
+version '0.3.0'
 
 lua54 'yes'
 
@@ -20,11 +20,13 @@ server_scripts {
     'server/characters.lua',
     'server/money.lua',
     'server/player.lua',
+    'server/lifecycle.lua',
     'server/main.lua'
 }
 
 client_scripts {
-    'client/main.lua'
+    'client/main.lua',
+    'client/lifecycle.lua'
 }
 
 dependency 'oxmysql'
