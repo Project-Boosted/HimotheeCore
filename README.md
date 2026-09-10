@@ -1,8 +1,10 @@
-# HimotheeCore v0.1.3 — Stage 1 Foundation
+# HimotheeCore v0.2.0 — Stage 1B
 
-HimotheeCore is a progression-focused FiveM framework currently in Stage 1 development.
+HimotheeCore is a progression-focused FiveM framework being built as a modular alternative to existing monolithic RP frameworks.
 
 ## Current Stage 1 coverage
+
+### Stage 1A — foundation
 
 - txAdmin recipe-ready deployment
 - MySQL/MariaDB schema with migration tracking
@@ -16,7 +18,22 @@ HimotheeCore is a progression-focused FiveM framework currently in Stage 1 devel
 - persistent vehicles
 - audit logging
 - framework schema/version validation
-- temporary development commands for creating/loading characters
+
+### Stage 1B — character & player lifecycle
+
+- dedicated `himo_characters` resource
+- automatic character selector after joining
+- existing-character cards
+- character creation form
+- account-safe character selection
+- controlled spawn through `spawnmanager`
+- return to the character's last saved position
+- configurable default spawn for new characters
+- periodic server-authoritative position autosave
+- disconnect position-save attempt
+- Stage 1B Player Object/API
+- synchronized client character/money state
+- `/switchcharacter` development command
 
 ## txAdmin recipe
 
@@ -37,29 +54,58 @@ Fresh installs run:
 
 The schema version is recorded in `himo_schema_migrations`.
 
-## Development commands
+v0.2.0 does not require a schema migration; it uses the Stage 1A character metadata/position tables already installed.
 
-- `/himoaccount` — resolve/show the account ID for your current final FiveM player source.
-- `/himocreate Firstname Lastname YYYY-MM-DD gender` — create a test character.
-- `/himoload <characterId>` — load one of your own characters.
-- `/himowhoami` — display the currently loaded character.
+## Character flow
 
-These commands are temporary and will be replaced by the proper character UI.
+Normal players should no longer need `/himocreate` or `/himoload`.
+
+On join:
+
+    FiveM connection
+      -> Himothee account resolution
+      -> character selector
+      -> create or choose character
+      -> HimotheeCore character load
+      -> spawnmanager spawn
+      -> last saved position/default spawn
+      -> active Player Object
+
+Temporary debug commands remain available while Stage 1 is under development:
+
+- `/himoaccount`
+- `/himocreate Firstname Lastname YYYY-MM-DD gender`
+- `/himoload <characterId>`
+- `/himowhoami`
+- `/switchcharacter`
 
 ## Resource start order
 
-`oxmysql` must start before `himo_core`.
+`oxmysql` must start before `himo_core`, and `himo_core` must start before `himo_characters`. The supplied `server.cfg` already enforces this.
 
-## v0.1.3 join lifecycle fix
+## Configuration
 
-FiveM uses a temporary player source during `playerConnecting` and assigns the final in-game source at `playerJoining`. HimotheeCore now migrates the resolved account mapping across that boundary and can defensively re-resolve the account if needed.
+Current Stage 1B convars in `server.cfg`:
+
+    setr himo:maxCharacters 4
+    setr himo:startingCash 500
+    setr himo:startingBank 5000
+    setr himo:autoSaveMs 60000
+    setr himo:spawnX 215.76
+    setr himo:spawnY -810.12
+    setr himo:spawnZ 30.73
+    setr himo:spawnHeading 157.0
+
+## API
+
+See `docs/API.md` for the current Player Object, character, money and lifecycle APIs.
 
 ## Status
 
-This is a development/testing foundation build, not a production-ready release yet.
+This is still a development/testing framework. Stage 1B must pass real-server character-selector, spawn, autosave and reconnect tests before Stage 2 progression work begins.
 
 ## GitHub automation
 
 - Every push/pull request to `main` runs `.github/workflows/validate.yml`.
-- Validation checks Lua syntax, recipe YAML, release version consistency, recipe path safety and SQL import against MariaDB.
+- Validation checks Lua syntax, NUI JavaScript syntax, recipe YAML, resource wiring, release version consistency and SQL import against MariaDB.
 - Tags matching `v*` run `.github/workflows/release.yml` and publish a release ZIP + SHA-256 checksum.
