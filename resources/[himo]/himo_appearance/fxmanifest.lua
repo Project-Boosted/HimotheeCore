@@ -4,13 +4,16 @@ game 'gta5'
 name 'himo_appearance'
 author 'HimotheeGaming'
 description 'HimotheeCore appearance persistence with Illenium bridge'
-version '0.3.1'
+version '0.3.2'
 
 lua54 'yes'
 
 shared_script '@ox_lib/init.lua'
 
-client_script 'client/main.lua'
+client_scripts {
+    'client/main.lua',
+    'client/auto_creator.lua'
+}
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
