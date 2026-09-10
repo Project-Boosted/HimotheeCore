@@ -19,11 +19,17 @@ This is the first development package for the HimotheeCore FiveM framework.
 
 ## txAdmin recipe
 
-The recipe is preconfigured for the canonical repository:
+Use this exact **raw recipe URL** in txAdmin Server Deployer:
+
+    https://raw.githubusercontent.com/Project-Boosted/HimotheeCore/main/recipe.yaml
+
+Do **not** paste the repository homepage URL (`https://github.com/Project-Boosted/HimotheeCore`) into the Recipe URL box. The repository page is HTML, so txAdmin will report it as `invalid yaml`.
+
+The recipe itself downloads HimotheeCore from the canonical repository:
 
     https://github.com/Project-Boosted/HimotheeCore
 
-Once that repository exists and this source is pushed, use the raw `recipe.yaml` URL in txAdmin Server Deployer. New deployments will always download the current `main` branch. Existing production servers are intentionally not silently auto-updated; framework/database updates should be applied as explicit releases.
+New deployments download the current `main` branch. Existing production servers are intentionally not silently auto-updated; framework/database updates should be applied as explicit releases.
 
 ## Database
 
