@@ -2,7 +2,7 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.2.0
+version: 0.2.1
 author: HimotheeGaming
 description: Stage 1B character and player lifecycle for the HimotheeCore progression-focused FiveM framework.
 
