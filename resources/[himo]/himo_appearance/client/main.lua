@@ -1,32 +1,14 @@
-local editorOpen = false
+local fallbackEditorOpen = false
 local currentModelName = 'mp_m_freemode_01'
-
-local componentLabels = {
-    [1] = 'Masks',
-    [2] = 'Hair',
-    [3] = 'Arms / Torso',
-    [4] = 'Legs',
-    [5] = 'Bags',
-    [6] = 'Shoes',
-    [7] = 'Accessories',
-    [8] = 'Undershirt',
-    [9] = 'Body Armour',
-    [10] = 'Decals',
-    [11] = 'Tops / Jackets'
-}
-
-local propLabels = {
-    [0] = 'Hats',
-    [1] = 'Glasses',
-    [2] = 'Ears',
-    [6] = 'Watches',
-    [7] = 'Bracelets'
-}
 
 local function debugLog(message)
     if GetConvarInt('himo:debug', 0) == 1 then
         print(('[HimotheeAppearance] %s'):format(message))
     end
+end
+
+local function illeniumReady()
+    return GetResourceState('illenium-appearance') == 'started'
 end
 
 local function modelForGender(gender)
@@ -53,6 +35,17 @@ end
 
 local function setPlayerModel(modelName)
     modelName = tostring(modelName or 'mp_m_freemode_01')
+
+    if illeniumReady() then
+        local ok = pcall(function()
+            exports['illenium-appearance']:setPlayerModel(modelName)
+        end)
+        if ok then
+            currentModelName = modelName
+            return true
+        end
+    end
+
     local model = loadModel(modelName, 10000)
     if not model then
         debugLog(('Model failed to load: %s'):format(modelName))
@@ -77,7 +70,7 @@ local function applyDefaultModel(gender)
     return true
 end
 
-local function captureAppearance()
+local function nativeCaptureAppearance()
     local ped = PlayerPedId()
     if not ped or ped == 0 or not DoesEntityExist(ped) then return nil end
 
@@ -108,9 +101,21 @@ local function captureAppearance()
     return appearance
 end
 
-local function applyAppearance(appearance)
-    if type(appearance) ~= 'table' then return false end
+local function captureAppearance()
+    if illeniumReady() then
+        local ok, appearance = pcall(function()
+            return exports['illenium-appearance']:getPedAppearance(PlayerPedId())
+        end)
+        if ok and type(appearance) == 'table' then
+            currentModelName = tostring(appearance.model or currentModelName)
+            return appearance
+        end
+    end
 
+    return nativeCaptureAppearance()
+end
+
+local function nativeApplyAppearance(appearance)
     local modelName = tostring(appearance.model or currentModelName)
     if not setPlayerModel(modelName) then return false end
 
@@ -148,6 +153,23 @@ local function applyAppearance(appearance)
     return true
 end
 
+local function applyAppearance(appearance)
+    if type(appearance) ~= 'table' then return false end
+
+    if illeniumReady() then
+        local ok, err = pcall(function()
+            exports['illenium-appearance']:setPlayerAppearance(appearance)
+        end)
+        if ok then
+            currentModelName = tostring(appearance.model or currentModelName)
+            return true
+        end
+        debugLog(('Illenium apply failed, using native fallback: %s'):format(err))
+    end
+
+    return nativeApplyAppearance(appearance)
+end
+
 local function getOwnedAppearance(characterId)
     local ok, appearance = pcall(function()
         return lib.callback.await('himo_appearance:server:getPreview', false, characterId)
@@ -164,7 +186,9 @@ end
 local function prepareCharacter(character)
     if type(character) ~= 'table' then return false end
 
-    local appearance = getOwnedAppearance(character.id)
+    local appearance = character.id and tonumber(character.id) and tonumber(character.id) > 0
+        and getOwnedAppearance(character.id) or nil
+
     if appearance and applyAppearance(appearance) then
         return true
     end
@@ -173,7 +197,7 @@ local function prepareCharacter(character)
     return false
 end
 
-local function saveAppearance()
+local function saveCapturedAppearance()
     local appearance = captureAppearance()
     if not appearance then return false, 'Player ped is unavailable.' end
 
@@ -185,90 +209,9 @@ local function saveAppearance()
     return saved == true, reason
 end
 
-local function editComponent(componentId, label, reopen)
+local function randomiseFallbackClothes()
     local ped = PlayerPedId()
-    local maxDrawable = math.max(0, GetNumberOfPedDrawableVariations(ped, componentId) - 1)
-    local currentDrawable = GetPedDrawableVariation(ped, componentId)
-
-    local drawableInput = lib.inputDialog(label, {
-        {
-            type = 'number',
-            label = ('Drawable (0-%d)'):format(maxDrawable),
-            min = 0,
-            max = maxDrawable,
-            default = currentDrawable,
-            required = true
-        }
-    })
-
-    if not drawableInput then reopen() return end
-    local drawable = math.floor(tonumber(drawableInput[1]) or currentDrawable)
-    SetPedComponentVariation(ped, componentId, drawable, 0, 0)
-
-    local maxTexture = math.max(0, GetNumberOfPedTextureVariations(ped, componentId, drawable) - 1)
-    local textureInput = lib.inputDialog(label .. ' texture', {
-        {
-            type = 'number',
-            label = ('Texture (0-%d)'):format(maxTexture),
-            min = 0,
-            max = maxTexture,
-            default = 0,
-            required = true
-        }
-    })
-
-    local texture = textureInput and math.floor(tonumber(textureInput[1]) or 0) or 0
-    SetPedComponentVariation(ped, componentId, drawable, texture, 0)
-    reopen()
-end
-
-local function editProp(propId, label, reopen)
-    local ped = PlayerPedId()
-    local maxDrawable = math.max(0, GetNumberOfPedPropDrawableVariations(ped, propId) - 1)
-    local currentDrawable = GetPedPropIndex(ped, propId)
-
-    local drawableInput = lib.inputDialog(label, {
-        {
-            type = 'number',
-            label = ('Drawable (-1 clears, max %d)'):format(maxDrawable),
-            min = -1,
-            max = maxDrawable,
-            default = currentDrawable,
-            required = true
-        }
-    })
-
-    if not drawableInput then reopen() return end
-    local drawable = math.floor(tonumber(drawableInput[1]) or -1)
-    if drawable < 0 then
-        ClearPedProp(ped, propId)
-        reopen()
-        return
-    end
-
-    SetPedPropIndex(ped, propId, drawable, 0, true)
-    local maxTexture = math.max(0, GetNumberOfPedPropTextureVariations(ped, propId, drawable) - 1)
-    local textureInput = lib.inputDialog(label .. ' texture', {
-        {
-            type = 'number',
-            label = ('Texture (0-%d)'):format(maxTexture),
-            min = 0,
-            max = maxTexture,
-            default = 0,
-            required = true
-        }
-    })
-
-    local texture = textureInput and math.floor(tonumber(textureInput[1]) or 0) or 0
-    SetPedPropIndex(ped, propId, drawable, texture, true)
-    reopen()
-end
-
-local function randomiseClothes()
-    local ped = PlayerPedId()
-    local componentIds = { 3, 4, 6, 8, 11 }
-
-    for _, componentId in ipairs(componentIds) do
+    for _, componentId in ipairs({ 3, 4, 6, 8, 11 }) do
         local count = GetNumberOfPedDrawableVariations(ped, componentId)
         if count and count > 0 then
             local drawable = math.random(0, count - 1)
@@ -279,88 +222,80 @@ local function randomiseClothes()
     end
 end
 
-local function openEditor(character, required)
-    if editorOpen then return end
-    editorOpen = true
+local function openFallbackEditor(character, required)
+    if fallbackEditorOpen then return false end
+    fallbackEditorOpen = true
 
-    local function showMain()
-        local options = {
-            {
-                title = 'Randomise outfit',
-                description = 'Quickly generate a different clothing combination.',
-                icon = 'dice',
-                onSelect = function()
-                    randomiseClothes()
-                    showMain()
-                end
-            },
-            {
-                title = 'Reset to default clothes',
-                icon = 'rotate-left',
-                onSelect = function()
-                    applyDefaultModel(character.gender)
-                    showMain()
-                end
-            }
-        }
-
-        for componentId = 1, 11 do
-            local label = componentLabels[componentId]
-            if label then
-                options[#options + 1] = {
-                    title = label,
-                    description = 'Choose drawable and texture IDs.',
-                    icon = 'shirt',
-                    onSelect = function()
-                        editComponent(componentId, label, showMain)
-                    end
-                }
-            end
-        end
-
-        for propId, label in pairs(propLabels) do
-            options[#options + 1] = {
-                title = label,
-                description = 'Choose accessory drawable and texture IDs.',
-                icon = 'glasses',
-                onSelect = function()
-                    editProp(propId, label, showMain)
-                end
-            }
-        end
-
-        options[#options + 1] = {
-            title = 'Save & Finish',
-            description = 'Save this clothing setup to your HimotheeCore character.',
-            icon = 'floppy-disk',
-            onSelect = function()
-                local saved, reason = saveAppearance()
-                if not saved then
-                    lib.notify({ title = 'HimotheeCore', description = reason or 'Appearance save failed.', type = 'error' })
-                    showMain()
-                    return
-                end
-
-                editorOpen = false
-                lib.hideContext(false)
-                lib.notify({ title = 'HimotheeCore', description = 'Appearance saved.', type = 'success' })
-                TriggerEvent('himo_appearance:client:saved')
-            end
-        }
-
+    local function showMenu()
         lib.registerContext({
-            id = 'himo_appearance_editor',
+            id = 'himo_appearance_fallback',
             title = required and 'Create your appearance' or 'Edit appearance',
             canClose = not required,
             onExit = function()
-                editorOpen = false
+                fallbackEditorOpen = false
             end,
-            options = options
+            options = {
+                {
+                    title = 'Randomise outfit',
+                    description = 'Illenium Appearance is unavailable; use the Himothee fallback clothing generator.',
+                    icon = 'dice',
+                    onSelect = function()
+                        randomiseFallbackClothes()
+                        showMenu()
+                    end
+                },
+                {
+                    title = 'Reset clothing',
+                    icon = 'rotate-left',
+                    onSelect = function()
+                        applyDefaultModel(character.gender)
+                        showMenu()
+                    end
+                },
+                {
+                    title = 'Save & Finish',
+                    icon = 'floppy-disk',
+                    onSelect = function()
+                        local saved, reason = saveCapturedAppearance()
+                        if not saved then
+                            lib.notify({ title = 'HimotheeCore', description = reason or 'Appearance save failed.', type = 'error' })
+                            showMenu()
+                            return
+                        end
+                        fallbackEditorOpen = false
+                        lib.hideContext(false)
+                        TriggerEvent('himo_appearance:client:saved')
+                    end
+                }
+            }
         })
-        lib.showContext('himo_appearance_editor')
+        lib.showContext('himo_appearance_fallback')
     end
 
-    showMain()
+    showMenu()
+    return true
+end
+
+local function openEditor(character, required)
+    if type(character) ~= 'table' then return false end
+
+    if illeniumReady() then
+        if required then
+            debugLog(('Opening Illenium first-character creator for %s'):format(character.citizen_id or '?'))
+            TriggerEvent('qb-clothes:client:CreateFirstCharacter')
+        else
+            debugLog(('Opening Illenium full appearance editor for %s'):format(character.citizen_id or '?'))
+            TriggerEvent('illenium-appearance:client:openClothingShop', true)
+        end
+        return true
+    end
+
+    lib.notify({
+        title = 'HimotheeCore',
+        description = 'Illenium Appearance is unavailable. Using fallback clothing editor.',
+        type = 'warning'
+    })
+    return openFallbackEditor(character, required)
 end
 
 local function loadCurrent()
@@ -378,7 +313,6 @@ exports('CaptureAppearance', captureAppearance)
 exports('OpenEditor', openEditor)
 
 RegisterCommand('himoappearance', function()
-    if editorOpen then return end
     local character = exports['himo_core']:GetCharacter()
     if not character then
         lib.notify({ title = 'HimotheeCore', description = 'Load a character first.', type = 'error' })
