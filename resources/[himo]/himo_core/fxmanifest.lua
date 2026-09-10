@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_core'
 author 'HimotheeGaming'
 description 'HimotheeCore modular roleplay framework core services'
-version '0.4.0'
+version '0.4.1'
 
 lua54 'yes'
 
