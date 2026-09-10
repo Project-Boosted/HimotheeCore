@@ -63,10 +63,14 @@ jobs:
           set -euo pipefail
           grep -Fq 'src: https://github.com/citizenfx/cfx-server-data' recipe.yaml
           grep -Fq 'subpath: resources' recipe.yaml
-          grep -Fq 'dest: ./resources/[cfx-default]' recipe.yaml
           grep -Fq 'overextended/ox_lib/releases/latest/download/ox_lib.zip' recipe.yaml
           grep -Fq 'overextended/oxmysql/releases/latest/download/oxmysql.zip' recipe.yaml
+          grep -Fq 'iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip' recipe.yaml
           grep -Fq 'database/003_stage1b_lifecycle.sql' recipe.yaml
+          grep -Fq 'illenium-appearance/sql/playerskins.sql' recipe.yaml
+          grep -Fq 'illenium-appearance/sql/player_outfits.sql' recipe.yaml
+          grep -Fq 'illenium-appearance/sql/player_outfit_codes.sql' recipe.yaml
+          grep -Fq 'illenium-appearance/sql/management_outfits.sql' recipe.yaml
           if grep -Fq './tmp/cfx/[system]/' recipe.yaml; then
             echo 'Recipe contains a fragile CFX system-resource move path.' >&2
             exit 1
@@ -91,9 +95,20 @@ jobs:
             echo 'himo_characters must not use a fullscreen NUI in the critical login path.' >&2
             exit 1
           fi
-          test ! -f 'resources/[himo]/himo_characters/web/index.html'
-          test ! -f 'resources/[himo]/himo_characters/web/style.css'
-          test ! -f 'resources/[himo]/himo_characters/web/app.js'
+
+      - name: Validate Illenium compatibility bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRIDGE='resources/[himo]/himo_qb_bridge/fxmanifest.lua'
+          test -f "$BRIDGE"
+          test -f 'resources/[himo]/himo_qb_bridge/client/main.lua'
+          test -f 'resources/[himo]/himo_qb_bridge/server/main.lua'
+          grep -Fq "provide 'qb-core'" "$BRIDGE"
+          grep -Fq '__cfx_export_qb-core_' 'resources/[himo]/himo_qb_bridge/client/main.lua'
+          grep -Fq '__cfx_export_qb-core_' 'resources/[himo]/himo_qb_bridge/server/main.lua'
+          grep -Fq "qb-clothes:client:CreateFirstCharacter" 'resources/[himo]/himo_appearance/client/main.lua'
+          grep -Fq "illenium-appearance:server:saveAppearance" 'resources/[himo]/himo_appearance/server/main.lua'
 
       - name: Validate Stage 1B resource wiring
         shell: bash
@@ -101,26 +116,24 @@ jobs:
           set -euo pipefail
           test -f 'resources/[himo]/himo_core/server/lifecycle.lua'
           test -f 'resources/[himo]/himo_core/client/lifecycle.lua'
-          test -f 'resources/[himo]/himo_characters/fxmanifest.lua'
           test -f 'resources/[himo]/himo_characters/client/main.lua'
-          test -f 'resources/[himo]/himo_characters/server/main.lua'
-          test -f 'resources/[himo]/himo_spawn/fxmanifest.lua'
           test -f 'resources/[himo]/himo_spawn/client/main.lua'
-          test -f 'resources/[himo]/himo_appearance/fxmanifest.lua'
           test -f 'resources/[himo]/himo_appearance/client/main.lua'
-          test -f 'resources/[himo]/himo_appearance/server/main.lua'
 
           OXLIB_LINE=$(grep -n '^ensure ox_lib$' server.cfg | cut -d: -f1)
           OXMYSQL_LINE=$(grep -n '^ensure oxmysql$' server.cfg | cut -d: -f1)
           CORE_LINE=$(grep -n '^ensure himo_core$' server.cfg | cut -d: -f1)
+          BRIDGE_LINE=$(grep -n '^ensure himo_qb_bridge$' server.cfg | cut -d: -f1)
+          ILLENIUM_LINE=$(grep -n '^ensure illenium-appearance$' server.cfg | cut -d: -f1)
           APPEARANCE_LINE=$(grep -n '^ensure himo_appearance$' server.cfg | cut -d: -f1)
           SPAWN_LINE=$(grep -n '^ensure himo_spawn$' server.cfg | cut -d: -f1)
           CHAR_LINE=$(grep -n '^ensure himo_characters$' server.cfg | cut -d: -f1)
 
           test "$OXLIB_LINE" -lt "$CORE_LINE"
           test "$OXMYSQL_LINE" -lt "$CORE_LINE"
-          test "$CORE_LINE" -lt "$APPEARANCE_LINE"
-          test "$CORE_LINE" -lt "$SPAWN_LINE"
+          test "$CORE_LINE" -lt "$BRIDGE_LINE"
+          test "$BRIDGE_LINE" -lt "$ILLENIUM_LINE"
+          test "$ILLENIUM_LINE" -lt "$APPEARANCE_LINE"
           test "$APPEARANCE_LINE" -lt "$CHAR_LINE"
           test "$SPAWN_LINE" -lt "$CHAR_LINE"
 
@@ -131,6 +144,7 @@ jobs:
           VERSION="$(tr -d '\r\n' < VERSION)"
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_core/fxmanifest.lua'
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_qb_bridge/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_characters/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_spawn/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_appearance/fxmanifest.lua'
