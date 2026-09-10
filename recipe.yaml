@@ -2,7 +2,7 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.1.3
+version: 0.1.4
 author: HimotheeGaming
 description: Stage 1 foundation for the HimotheeCore progression-focused FiveM framework.
 
