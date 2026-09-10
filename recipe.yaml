@@ -2,12 +2,11 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.4.1
+version: 0.4.2
 author: HimotheeGaming
-description: Stage 1C core framework services with txAdmin ACE principal wiring and stable multicharacter, spawn and Illenium appearance lifecycle.
+description: Stage 1C core services with native account roles, ACE fallback, and stable multicharacter/spawn/Illenium lifecycle.
 
 tasks:
-  # Current Cfx.re default resources.
   - action: download_github
     src: https://github.com/citizenfx/cfx-server-data
     ref: master
@@ -30,7 +29,6 @@ tasks:
     src: ./tmp/oxmysql.zip
     dest: ./resources/[dependencies]
 
-  # Use Illenium's supported release package rather than its development main branch.
   - action: download_file
     url: https://github.com/iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip
     path: ./tmp/illenium-appearance.zip
@@ -70,7 +68,9 @@ tasks:
   - action: query_database
     file: ./tmp/himotheecore/database/004_stage1c_core_services.sql
 
-  # Illenium persistence tables. These are additive and use IF NOT EXISTS.
+  - action: query_database
+    file: ./tmp/himotheecore/database/005_stage1c_account_roles.sql
+
   - action: query_database
     file: ./resources/[dependencies]/illenium-appearance/sql/playerskins.sql
 
