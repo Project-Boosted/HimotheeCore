@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2 - Stage 1B NUI black-overlay fix
+
+- Fixed the character selector NUI continuing to paint an opaque dark root layer after the selector closed.
+- Made `:root`/`html` permanently transparent for FiveM NUI rendering.
+- Moved the full-screen selector background to `body:not(.hidden)` so it exists only while the selector is visible.
+- Changed the closed selector state to `display: none !important` as well as transparent/no-input.
+- Added a CI guard so future NUI CSS cannot reintroduce an opaque root/html background.
+- No SQL migration is required.
+
 ## 0.2.1 - Stage 1B spawn black-screen fix
 
 - Replaced selected-character `spawnmanager:spawnPlayer()` usage with a bounded native spawn path so a stale CFX `spawnLock` cannot strand the client on a black screen.
