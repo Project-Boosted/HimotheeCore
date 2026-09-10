@@ -1,11 +1,14 @@
-local uiOpen = false
-local spawning = false
-local currentCharacter = nil
+local selectionActive = false
+local spawnInProgress = false
+local previewCam = nil
+local pendingCharacter = nil
+local pendingIsNew = false
 local spawnGeneration = 0
 
-local function getConvarNumber(name, fallback)
-    return tonumber(GetConvar(name, tostring(fallback))) or fallback
-end
+local preview = {
+    ped = { x = 969.25, y = 72.61, z = 116.18, w = 276.55 },
+    cam = { x = 972.20, y = 72.90, z = 116.68, w = 97.27 }
+}
 
 local function debugLog(message)
     if GetConvarInt('himo:debug', 0) == 1 then
@@ -13,337 +16,492 @@ local function debugLog(message)
     end
 end
 
-local function defaultSpawn()
-    return {
-        x = getConvarNumber('himo:spawnX', 215.76),
-        y = getConvarNumber('himo:spawnY', -810.12),
-        z = getConvarNumber('himo:spawnZ', 30.73),
-        heading = getConvarNumber('himo:spawnHeading', 157.0)
-    }
-end
-
-local function resolveSpawn(character)
-    local x = tonumber(character.position_x)
-    local y = tonumber(character.position_y)
-    local z = tonumber(character.position_z)
-    local heading = tonumber(character.heading) or 0.0
-
-    if not x or not y or not z or (math.abs(x) < 0.01 and math.abs(y) < 0.01 and math.abs(z) < 0.01) then
-        return defaultSpawn()
-    end
-
-    return {
-        x = x,
-        y = y,
-        z = z,
-        heading = heading
-    }
-end
-
-local function setWaitingState(enabled)
-    local ped = PlayerPedId()
-    if ped and ped ~= 0 and DoesEntityExist(ped) then
-        FreezeEntityPosition(ped, enabled)
-        SetEntityVisible(ped, not enabled, false)
-        SetEntityInvincible(ped, enabled)
-        if not enabled then
-            SetEntityCollision(ped, true, true)
-        end
-    end
-end
-
 local function takeSpawnControl()
-    exports['spawnmanager']:setAutoSpawn(false)
+    pcall(function()
+        exports['spawnmanager']:setAutoSpawn(false)
+    end)
 end
 
 local function fadeOutSafe(duration)
-    duration = duration or 250
+    duration = duration or 300
     if IsScreenFadedOut() then return end
 
     DoScreenFadeOut(duration)
     local deadline = GetGameTimer() + math.max(1500, duration + 1000)
-    while not IsScreenFadedOut() and GetGameTimer() < deadline do
-        Wait(0)
-    end
+    while not IsScreenFadedOut() and GetGameTimer() < deadline do Wait(0) end
 end
 
-local function openUi(payload)
-    uiOpen = true
-    spawning = false
+local function fadeInSafe(duration)
+    duration = duration or 500
+    if IsScreenFadedIn() then return end
 
-    takeSpawnControl()
-    DoScreenFadeOut(0)
-    setWaitingState(true)
-    SetNuiFocus(true, true)
-    SetNuiFocusKeepInput(false)
+    DoScreenFadeIn(duration)
+    local deadline = GetGameTimer() + math.max(2000, duration + 1500)
+    while not IsScreenFadedIn() and GetGameTimer() < deadline do Wait(0) end
+end
 
-    SendNUIMessage({
-        action = 'open',
-        accountId = payload.accountId,
-        characters = payload.characters or {},
-        maxCharacters = payload.maxCharacters or 4,
-        notice = payload.notice
+local function destroyPreviewCamera()
+    if previewCam and DoesCamExist(previewCam) then
+        SetCamActive(previewCam, false)
+        DestroyCam(previewCam, true)
+    end
+    RenderScriptCams(false, false, 300, true, true)
+    ClearTimecycleModifier()
+    previewCam = nil
+end
+
+local function setupPreviewCamera()
+    destroyPreviewCamera()
+    previewCam = CreateCamWithParams(
+        'DEFAULT_SCRIPTED_CAMERA',
+        preview.cam.x, preview.cam.y, preview.cam.z,
+        -6.0, 0.0, preview.cam.w,
+        40.0, false, 0
+    )
+    SetCamActive(previewCam, true)
+    RenderScriptCams(true, false, 500, true, true)
+    SetTimecycleModifier('hud_def_blur')
+    SetTimecycleModifierStrength(0.65)
+end
+
+local function startTutorialSession()
+    if NetworkIsInTutorialSession() then return true end
+
+    NetworkStartSoloTutorialSession()
+    local deadline = GetGameTimer() + 5000
+    while not NetworkIsInTutorialSession() and GetGameTimer() < deadline do Wait(0) end
+
+    if not NetworkIsInTutorialSession() then
+        debugLog('Tutorial session did not report active within timeout; selector will continue safely.')
+        return false
+    end
+    return true
+end
+
+local function setPreviewPedState()
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return false end
+
+    SetEntityCoordsNoOffset(ped, preview.ped.x, preview.ped.y, preview.ped.z, false, false, false, true)
+    SetEntityHeading(ped, preview.ped.w)
+    FreezeEntityPosition(ped, true)
+    SetEntityInvincible(ped, true)
+    SetEntityVisible(ped, true, false)
+    SetEntityCollision(ped, true, true)
+    return true
+end
+
+local function previewCharacter(character)
+    fadeOutSafe(150)
+
+    local target = character or { id = 0, gender = 'male' }
+    local ok, hadAppearance = pcall(function()
+        return exports['himo_appearance']:PrepareCharacter(target)
+    end)
+    if not ok then
+        debugLog(('Preview appearance failed: %s'):format(hadAppearance))
+    end
+
+    setPreviewPedState()
+    fadeInSafe(250)
+end
+
+local function notifyError(message)
+    lib.notify({
+        title = 'HimotheeCore',
+        description = tostring(message or 'Something went wrong.'),
+        type = 'error'
     })
 end
 
-local function closeUi()
-    uiOpen = false
-    SetNuiFocus(false, false)
-    SetNuiFocusKeepInput(false)
-    SendNUIMessage({ action = 'close' })
+local function fetchCharacterList()
+    local ok, payload, reason = pcall(function()
+        return lib.callback.await('himo_characters:server:list', false)
+    end)
+
+    if not ok then return nil, tostring(payload) end
+    if not payload then return nil, reason or 'Character list could not be loaded.' end
+    return payload
 end
 
-local function modelForCharacter(character)
-    local gender = tostring(character.gender or ''):lower()
-    if gender == 'female' or gender == 'f' or gender == 'woman' then
-        return joaat('mp_f_freemode_01')
+local chooseCharacter
+
+local function beginSpawnChoice(character, isNew)
+    pendingCharacter = character
+    pendingIsNew = isNew == true
+    lib.hideContext(false)
+
+    local ok, err = pcall(function()
+        exports['himo_spawn']:Open(character, pendingIsNew)
+    end)
+    if not ok then
+        notifyError(('Spawn selector failed: %s'):format(err))
+        chooseCharacter()
     end
-    return joaat('mp_m_freemode_01')
 end
 
-local function loadModel(model, timeoutMs)
-    if not IsModelInCdimage(model) or not IsModelValid(model) then
-        return false
+local function loadExistingCharacter(character)
+    fadeOutSafe(150)
+
+    local ok, loaded, reason = pcall(function()
+        return lib.callback.await('himo_characters:server:load', false, character.id)
+    end)
+
+    if not ok then
+        fadeInSafe(250)
+        notifyError(loaded)
+        return
+    end
+    if not loaded then
+        fadeInSafe(250)
+        notifyError(reason or 'Character load failed.')
+        return
     end
 
-    if HasModelLoaded(model) then
-        return true
-    end
-
-    RequestModel(model)
-    local deadline = GetGameTimer() + (timeoutMs or 8000)
-    while not HasModelLoaded(model) and GetGameTimer() < deadline do
-        RequestModel(model)
-        Wait(0)
-    end
-
-    return HasModelLoaded(model)
+    debugLog(('Server login accepted for %s'):format(loaded.citizen_id or '?'))
+    beginSpawnChoice(loaded, false)
+    fadeInSafe(250)
 end
 
-local function finishSpawn(character, generation)
-    if generation and generation ~= spawnGeneration then return end
+local function createCharacter()
+    local dialog = lib.inputDialog('Create character', {
+        { type = 'input', label = 'First name', required = true, min = 2, max = 50 },
+        { type = 'input', label = 'Last name', required = true, min = 2, max = 50 },
+        { type = 'date', label = 'Date of birth', required = true, format = 'YYYY-MM-DD', returnString = true, min = '1900-01-01', max = '2008-12-31' },
+        {
+            type = 'select',
+            label = 'Gender',
+            required = true,
+            options = {
+                { value = 'male', label = 'Male' },
+                { value = 'female', label = 'Female' }
+            }
+        },
+        { type = 'input', label = 'Nationality', required = true, default = 'British', max = 60 }
+    })
 
-    local ped = PlayerPedId()
-    if ped and ped ~= 0 and DoesEntityExist(ped) then
-        SetEntityVisible(ped, true, false)
-        SetEntityInvincible(ped, false)
-        SetEntityCollision(ped, true, true)
-        FreezeEntityPosition(ped, false)
+    if not dialog then
+        lib.showContext('himo_character_list')
+        return
+    end
 
-        local health = tonumber(character.health)
-        local armour = tonumber(character.armour)
-        if health and health >= 100 then
-            SetEntityHealth(ped, math.floor(health))
+    fadeOutSafe(150)
+    local ok, character, reason = pcall(function()
+        return lib.callback.await('himo_characters:server:create', false, {
+            firstName = dialog[1],
+            lastName = dialog[2],
+            dateOfBirth = dialog[3],
+            gender = dialog[4],
+            nationality = dialog[5]
+        })
+    end)
+
+    if not ok then
+        fadeInSafe(250)
+        notifyError(character)
+        chooseCharacter()
+        return
+    end
+    if not character then
+        fadeInSafe(250)
+        notifyError(reason or 'Character creation failed.')
+        chooseCharacter()
+        return
+    end
+
+    debugLog(('Created and server-loaded %s'):format(character.citizen_id or '?'))
+    beginSpawnChoice(character, true)
+    fadeInSafe(250)
+end
+
+local function registerCharacterMenus(payload)
+    local characters = payload.characters or {}
+    local maxCharacters = tonumber(payload.maxCharacters) or 4
+    local bySlot = {}
+    for _, character in ipairs(characters) do
+        bySlot[tonumber(character.slot) or 0] = character
+    end
+
+    local options = {}
+    for slot = 1, maxCharacters do
+        local character = bySlot[slot]
+        if character then
+            local captured = character
+            local contextId = ('himo_character_%s'):format(captured.id)
+
+            lib.registerContext({
+                id = contextId,
+                title = ('%s %s'):format(captured.first_name or 'Unknown', captured.last_name or ''),
+                menu = 'himo_character_list',
+                canClose = false,
+                options = {
+                    {
+                        title = 'Play',
+                        description = 'Load this character and choose a spawn.',
+                        icon = 'play',
+                        onSelect = function()
+                            loadExistingCharacter(captured)
+                        end
+                    },
+                    {
+                        title = 'Character details',
+                        icon = 'id-card',
+                        readOnly = true,
+                        metadata = {
+                            { label = 'Citizen ID', value = captured.citizen_id or '?' },
+                            { label = 'Date of birth', value = tostring(captured.date_of_birth or 'Not set'):sub(1, 10) },
+                            { label = 'Nationality', value = captured.nationality or 'Not set' },
+                            { label = 'Gender', value = captured.gender or 'Not set' }
+                        }
+                    }
+                }
+            })
+
+            options[#options + 1] = {
+                title = ('Slot %d - %s %s'):format(slot, captured.first_name or 'Unknown', captured.last_name or ''),
+                description = captured.citizen_id or 'Existing character',
+                icon = 'user',
+                onSelect = function()
+                    previewCharacter(captured)
+                    lib.showContext(contextId)
+                end
+            }
+        else
+            options[#options + 1] = {
+                title = ('Slot %d - New Character'):format(slot),
+                description = 'Create a new life in this slot.',
+                icon = 'user-plus',
+                onSelect = createCharacter
+            }
         end
-        if armour and armour >= 0 then
-            SetPedArmour(ped, math.floor(armour))
+    end
+
+    lib.registerContext({
+        id = 'himo_character_list',
+        title = ('HimotheeCore - Account %s'):format(payload.accountId or '?'),
+        canClose = false,
+        options = options
+    })
+end
+
+chooseCharacter = function()
+    if spawnInProgress then return end
+
+    takeSpawnControl()
+    fadeOutSafe(300)
+
+    local payload, reason = fetchCharacterList()
+    if not payload then
+        notifyError(reason)
+        ShutdownLoadingScreen()
+        ShutdownLoadingScreenNui()
+        fadeInSafe(500)
+        return
+    end
+
+    if payload.loadedCharacter and payload.worldReady then
+        debugLog('Character resource started while player is already world-ready; selector skipped.')
+        fadeInSafe(250)
+        return
+    end
+
+    if payload.loadedCharacter and not payload.worldReady then
+        pcall(function()
+            lib.callback.await('himo_characters:server:logout', false)
+        end)
+        payload, reason = fetchCharacterList()
+        if not payload then
+            notifyError(reason)
+            fadeInSafe(500)
+            return
         end
     end
 
-    spawning = false
-    currentCharacter = character
+    selectionActive = true
+    pendingCharacter = nil
+    pendingIsNew = false
+
+    startTutorialSession()
+
+    local firstCharacter = payload.characters and payload.characters[1] or nil
+    local ok, previewResult = pcall(function()
+        return exports['himo_appearance']:PrepareCharacter(firstCharacter or { id = 0, gender = 'male' })
+    end)
+    if not ok then debugLog(('Initial preview model failed: %s'):format(previewResult)) end
+
+    setPreviewPedState()
+    setupPreviewCamera()
+    DisplayRadar(false)
+
+    registerCharacterMenus(payload)
     ShutdownLoadingScreen()
     ShutdownLoadingScreenNui()
-    DoScreenFadeIn(750)
-    debugLog(('Spawn complete for %s %s at %.2f %.2f %.2f'):format(
-        character.first_name or '?',
-        character.last_name or '?',
+    fadeInSafe(500)
+    lib.showContext('himo_character_list')
+end
+
+local function nativeSpawnFallback(coords)
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return false end
+
+    RequestCollisionAtCoord(coords.x, coords.y, coords.z)
+    SetEntityCoordsNoOffset(ped, coords.x, coords.y, coords.z, false, false, false, true)
+    NetworkResurrectLocalPlayer(coords.x, coords.y, coords.z, coords.w or 0.0, true, true, false)
+    SetEntityHeading(PlayerPedId(), coords.w or 0.0)
+    return true
+end
+
+local function finishWorldEntry(character, isNew, generation)
+    if generation ~= spawnGeneration then return end
+
+    local ped = PlayerPedId()
+    SetEntityVisible(ped, true, false)
+    SetEntityInvincible(ped, false)
+    SetEntityCollision(ped, true, true)
+    FreezeEntityPosition(ped, false)
+    ClearPlayerWantedLevel(PlayerId())
+    DisplayRadar(true)
+
+    local health = tonumber(character.health)
+    local armour = tonumber(character.armour)
+    if health and health >= 100 then SetEntityHealth(ped, math.floor(health)) end
+    if armour and armour >= 0 then SetPedArmour(ped, math.floor(armour)) end
+
+    TriggerServerEvent('himo_core:server:finishLogin')
+
+    local readyDeadline = GetGameTimer() + 5000
+    while not exports['himo_core']:IsPlayerLoaded() and GetGameTimer() < readyDeadline do Wait(50) end
+    if not exports['himo_core']:IsPlayerLoaded() then
+        debugLog('World-ready acknowledgement timed out; forcing tutorial cleanup locally.')
+        exports['himo_core']:EndTutorialSession()
+    end
+
+    selectionActive = false
+    spawnInProgress = false
+    pendingCharacter = nil
+    pendingIsNew = false
+
+    ShutdownLoadingScreen()
+    ShutdownLoadingScreenNui()
+    fadeInSafe(500)
+
+    debugLog(('World entry complete for %s at %.2f %.2f %.2f'):format(
+        character.citizen_id or '?',
         GetEntityCoords(PlayerPedId()).x,
         GetEntityCoords(PlayerPedId()).y,
         GetEntityCoords(PlayerPedId()).z
     ))
+
     TriggerEvent('himo_characters:client:spawned', character)
-end
 
-local function performNativeSpawn(character, generation)
-    local spawn = resolveSpawn(character)
-    local model = modelForCharacter(character)
-
-    debugLog(('Starting native spawn for %s at %.2f %.2f %.2f'):format(
-        character.citizen_id or '?', spawn.x, spawn.y, spawn.z
-    ))
-
-    local modelLoaded = loadModel(model, 8000)
-    if generation ~= spawnGeneration then return end
-
-    if modelLoaded then
-        SetPlayerModel(PlayerId(), model)
-        SetModelAsNoLongerNeeded(model)
-        Wait(0)
-
-        local ped = PlayerPedId()
-        if ped and ped ~= 0 and DoesEntityExist(ped) then
-            SetPedDefaultComponentVariation(ped)
+    if isNew then
+        Wait(500)
+        local ok, err = pcall(function()
+            exports['himo_appearance']:OpenEditor(character, true)
+        end)
+        if not ok then
+            debugLog(('Initial clothing editor failed: %s'):format(err))
+            lib.notify({ title = 'HimotheeCore', description = 'Use /himoappearance to edit your clothing.', type = 'warning' })
         end
-    else
-        debugLog('Requested freemode model did not load in time; using current player model as fallback.')
     end
-
-    local ped = PlayerPedId()
-    if not ped or ped == 0 or not DoesEntityExist(ped) then
-        debugLog('Player ped was unavailable during spawn; emergency fade-in will recover the screen.')
-        return
-    end
-
-    RequestCollisionAtCoord(spawn.x, spawn.y, spawn.z)
-    SetEntityCoordsNoOffset(ped, spawn.x, spawn.y, spawn.z, false, false, false, true)
-    NetworkResurrectLocalPlayer(spawn.x, spawn.y, spawn.z, spawn.heading, true, true, false)
-
-    ped = PlayerPedId()
-    ClearPedTasksImmediately(ped)
-    ClearPlayerWantedLevel(PlayerId())
-    SetEntityHeading(ped, spawn.heading)
-
-    local collisionDeadline = GetGameTimer() + 5000
-    while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < collisionDeadline do
-        RequestCollisionAtCoord(spawn.x, spawn.y, spawn.z)
-        Wait(50)
-    end
-
-    if generation ~= spawnGeneration then return end
-    finishSpawn(character, generation)
 end
 
-local function spawnCharacter(character)
-    if spawning then return end
-    spawning = true
+local function spawnSelectedCharacter(selection)
+    if spawnInProgress or not pendingCharacter then return end
+
+    local character = pendingCharacter
+    local isNew = pendingIsNew
+    local coords = {
+        x = tonumber(selection.x) or 215.76,
+        y = tonumber(selection.y) or -810.12,
+        z = tonumber(selection.z) or 30.73,
+        w = tonumber(selection.w) or 157.0
+    }
+
+    spawnInProgress = true
     spawnGeneration = spawnGeneration + 1
     local generation = spawnGeneration
 
-    fadeOutSafe(250)
-    closeUi()
+    fadeOutSafe(400)
+    lib.hideContext(false)
+    destroyPreviewCamera()
     takeSpawnControl()
 
-    -- Never allow a failed model/collision/spawn path to strand the player on a
-    -- permanent black screen. This watchdog is deliberately independent from
-    -- spawnmanager's internal spawnLock.
-    CreateThread(function()
-        Wait(12000)
-        if spawning and generation == spawnGeneration then
-            debugLog('Spawn watchdog fired; restoring player visibility and screen.')
-            spawning = false
-            currentCharacter = character
-            setWaitingState(false)
-            ShutdownLoadingScreen()
-            ShutdownLoadingScreenNui()
-            DoScreenFadeIn(500)
-            TriggerEvent('himo_characters:client:spawned', character)
-        end
+    local ok, hadAppearance = pcall(function()
+        return exports['himo_appearance']:PrepareCharacter(character)
     end)
-
-    CreateThread(function()
-        performNativeSpawn(character, generation)
-    end)
-end
-
-RegisterNetEvent('himo_characters:client:show', function(payload)
-    openUi(payload or {})
-end)
-
-RegisterNetEvent('himo_characters:client:error', function(message)
-    SendNUIMessage({
-        action = 'error',
-        message = message or 'Something went wrong.'
-    })
-end)
-
-RegisterNetEvent('himo_characters:client:resume', function(character)
-    currentCharacter = character
-    closeUi()
-    takeSpawnControl()
-    setWaitingState(false)
-    ShutdownLoadingScreen()
-    ShutdownLoadingScreenNui()
-    if IsScreenFadedOut() or IsScreenFadingOut() then
-        DoScreenFadeIn(500)
+    if not ok then
+        debugLog(('Final appearance preparation failed: %s'):format(hadAppearance))
     end
-end)
 
-RegisterNetEvent('himo_core:client:characterLoaded', function(character)
-    currentCharacter = character
-    spawnCharacter(character)
-end)
+    local completed = false
+    local function complete()
+        if completed or generation ~= spawnGeneration then return end
+        completed = true
+        finishWorldEntry(character, isNew, generation)
+    end
 
-RegisterNetEvent('himo_core:client:characterUnloaded', function()
-    currentCharacter = nil
-end)
+    local spawnOk, spawnErr = pcall(function()
+        exports['spawnmanager']:spawnPlayer({
+            x = coords.x,
+            y = coords.y,
+            z = coords.z,
+            heading = coords.w,
+            skipFade = true
+        }, complete)
+    end)
 
-RegisterNUICallback('selectCharacter', function(data, cb)
-    local characterId = tonumber(data and data.characterId)
-    if not characterId then
-        cb({ ok = false, error = 'Invalid character.' })
+    if not spawnOk then
+        debugLog(('spawnmanager call failed: %s'):format(spawnErr))
+        nativeSpawnFallback(coords)
+        complete()
         return
     end
 
-    TriggerServerEvent('himo_characters:server:select', characterId)
-    cb({ ok = true })
-end)
+    CreateThread(function()
+        Wait(8000)
+        if completed or generation ~= spawnGeneration then return end
+        debugLog('spawnmanager callback timeout; using bounded native fallback.')
+        nativeSpawnFallback(coords)
+        complete()
+    end)
+end
 
-RegisterNUICallback('createCharacter', function(data, cb)
-    TriggerServerEvent('himo_characters:server:create', data or {})
-    cb({ ok = true })
-end)
-
-RegisterNUICallback('refreshCharacters', function(_, cb)
-    TriggerServerEvent('himo_characters:server:refresh')
-    cb({ ok = true })
-end)
+AddEventHandler('himo_spawn:client:selected', spawnSelectedCharacter)
 
 RegisterCommand('switchcharacter', function()
-    if spawning then return end
-    TriggerServerEvent('himo_characters:server:logout')
-end, false)
-
--- Development recovery command. This does not alter character/database data;
--- it only releases NUI/freeze/fade state if another resource leaves the client
--- visually stuck while Stage 1B is being tested.
-RegisterCommand('himounblack', function()
-    spawning = false
-    spawnGeneration = spawnGeneration + 1
-    closeUi()
-    takeSpawnControl()
-    setWaitingState(false)
-    ShutdownLoadingScreen()
-    ShutdownLoadingScreenNui()
-    DoScreenFadeIn(250)
-    debugLog('Manual black-screen recovery executed.')
-end, false)
-
--- basic-gamemode enables spawnmanager autospawn during onClientMapStart. Stage
--- 1B owns the player spawn, so reclaim control after that stock handler runs.
-AddEventHandler('onClientMapStart', function()
+    if spawnInProgress then return end
     CreateThread(function()
-        Wait(0)
-        takeSpawnControl()
-        if uiOpen then
-            setWaitingState(true)
+        fadeOutSafe(250)
+        local ok, success, reason = pcall(function()
+            return lib.callback.await('himo_characters:server:logout', false)
+        end)
+        if not ok or not success then
+            notifyError(ok and (reason or 'Could not unload character.') or success)
+            fadeInSafe(250)
+            return
         end
+        chooseCharacter()
     end)
-end)
+end, false)
 
 CreateThread(function()
     takeSpawnControl()
-
-    while not NetworkIsSessionStarted() do
-        Wait(100)
-    end
-
-    ShutdownLoadingScreen()
-    ShutdownLoadingScreenNui()
-    Wait(750)
-
-    takeSpawnControl()
-    TriggerServerEvent('himo_characters:server:bootstrap')
+    while not NetworkIsSessionStarted() do Wait(100) end
+    Wait(250)
+    chooseCharacter()
 end)
 
 CreateThread(function()
     while true do
-        if uiOpen then
-            DisableAllControlActions(0)
-            EnableControlAction(0, 249, true) -- push-to-talk can remain available
-            Wait(0)
+        if selectionActive then
+            local ped = PlayerPedId()
+            if ped and ped ~= 0 and DoesEntityExist(ped) then
+                SetEntityInvincible(ped, true)
+            end
+            Wait(250)
         else
-            Wait(500)
+            Wait(1000)
         end
     end
 end)
@@ -351,11 +509,18 @@ end)
 AddEventHandler('onResourceStop', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
     spawnGeneration = spawnGeneration + 1
-    if uiOpen or spawning then
-        SetNuiFocus(false, false)
-        setWaitingState(false)
-        ShutdownLoadingScreen()
-        ShutdownLoadingScreenNui()
-        DoScreenFadeIn(0)
+    destroyPreviewCamera()
+    lib.hideContext(false)
+    SetNuiFocus(false, false)
+    DisplayRadar(true)
+
+    local ped = PlayerPedId()
+    if ped and ped ~= 0 and DoesEntityExist(ped) then
+        FreezeEntityPosition(ped, false)
+        SetEntityInvincible(ped, false)
+        SetEntityVisible(ped, true, false)
+        SetEntityCollision(ped, true, true)
     end
+
+    if IsScreenFadedOut() then DoScreenFadeIn(0) end
 end)
