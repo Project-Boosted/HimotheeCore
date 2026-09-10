@@ -10,10 +10,6 @@ local function canAct(source, cooldownMs)
     return true
 end
 
-local function sendError(source, message)
-    TriggerClientEvent('himo_characters:client:error', source, message or 'Unknown character error.')
-end
-
 local function ensureAccount(source)
     local ok, accountId, reason = pcall(function()
         return exports['himo_core']:EnsureAccount(source)
@@ -26,67 +22,56 @@ local function ensureAccount(source)
     return accountId, reason
 end
 
-local function sendCharacterList(source, notice)
+lib.callback.register('himo_characters:server:list', function(source)
     local accountId, reason = ensureAccount(source)
-    if not accountId then
-        sendError(source, reason or 'Your HimotheeCore account could not be loaded.')
-        return false
-    end
+    if not accountId then return nil, reason or 'Account is not ready.' end
 
     local ok, characters = pcall(function()
         return exports['himo_core']:GetCharacters(source)
     end)
+    if not ok then return nil, tostring(characters) end
 
-    if not ok then
-        sendError(source, ('Could not load your characters: %s'):format(characters))
-        return false
-    end
-
-    TriggerClientEvent('himo_characters:client:show', source, {
+    return {
         accountId = accountId,
         characters = characters or {},
         maxCharacters = math.max(1, GetConvarInt('himo:maxCharacters', 4)),
-        notice = notice
-    })
-
-    return true
-end
-
-RegisterNetEvent('himo_characters:server:bootstrap', function()
-    local source = source
-    if not canAct(source, 300) then return end
-
-    local loaded = exports['himo_core']:GetCharacter(source)
-    if loaded then
-        TriggerClientEvent('himo_characters:client:resume', source, loaded)
-        return
-    end
-
-    sendCharacterList(source)
+        loadedCharacter = exports['himo_core']:GetCharacter(source),
+        worldReady = exports['himo_core']:IsPlayerLoaded(source)
+    }
 end)
 
-RegisterNetEvent('himo_characters:server:refresh', function()
-    local source = source
-    if not canAct(source, 400) then return end
-    sendCharacterList(source)
-end)
+lib.callback.register('himo_characters:server:load', function(source, characterId)
+    if not canAct(source, 500) then return nil, 'Please wait a moment.' end
 
-RegisterNetEvent('himo_characters:server:create', function(data)
-    local source = source
-    if not canAct(source, 1000) then
-        sendError(source, 'Please wait a moment before creating another character.')
-        return
-    end
-
-    if type(data) ~= 'table' then
-        sendError(source, 'Invalid character data.')
-        return
-    end
+    characterId = tonumber(characterId)
+    if not characterId or characterId < 1 then return nil, 'Invalid character.' end
 
     local accountId, reason = ensureAccount(source)
-    if not accountId then
-        sendError(source, reason or 'Your account is not ready.')
-        return
+    if not accountId then return nil, reason or 'Account is not ready.' end
+
+    local current = exports['himo_core']:GetCharacter(source)
+    if current then
+        if tonumber(current.id) == characterId then return current end
+        return nil, 'A character is already loaded. Switch character first.'
+    end
+
+    local ok, character, err = pcall(function()
+        return exports['himo_core']:LoadCharacter(source, characterId)
+    end)
+
+    if not ok then return nil, tostring(character) end
+    if not character then return nil, err or 'Character load failed.' end
+    return character
+end)
+
+lib.callback.register('himo_characters:server:create', function(source, data)
+    if not canAct(source, 1000) then return nil, 'Please wait a moment.' end
+    if type(data) ~= 'table' then return nil, 'Invalid character data.' end
+
+    local accountId, reason = ensureAccount(source)
+    if not accountId then return nil, reason or 'Account is not ready.' end
+    if exports['himo_core']:GetCharacter(source) then
+        return nil, 'Unload the current character before creating another.'
     end
 
     local ok, character, err = pcall(function()
@@ -99,60 +84,24 @@ RegisterNetEvent('himo_characters:server:create', function(data)
         })
     end)
 
-    if not ok then
-        sendError(source, ('Character creation failed: %s'):format(character))
-        return
-    end
+    if not ok then return nil, tostring(character) end
+    if not character then return nil, err or 'Character creation failed.' end
 
-    if not character then
-        sendError(source, err or 'Character creation failed.')
-        return
-    end
+    local loaded, loadErr = exports['himo_core']:LoadCharacter(source, character.id)
+    if not loaded then return nil, loadErr or 'New character could not be loaded.' end
 
-    sendCharacterList(source, ('%s %s created successfully.'):format(
-        character.first_name,
-        character.last_name
-    ))
+    return loaded
 end)
 
-RegisterNetEvent('himo_characters:server:select', function(characterId)
-    local source = source
-    if not canAct(source, 750) then return end
+lib.callback.register('himo_characters:server:logout', function(source)
+    if not canAct(source, 800) then return false, 'Please wait a moment.' end
 
-    characterId = tonumber(characterId)
-    if not characterId or characterId < 1 then
-        sendError(source, 'Invalid character selection.')
-        return
-    end
+    local character = exports['himo_core']:GetCharacter(source)
+    if not character then return true end
 
-    local accountId, reason = ensureAccount(source)
-    if not accountId then
-        sendError(source, reason or 'Your account is not ready.')
-        return
-    end
-
-    local ok, character, err = pcall(function()
-        return exports['himo_core']:LoadCharacter(source, characterId)
-    end)
-
-    if not ok then
-        sendError(source, ('Character load failed: %s'):format(character))
-        return
-    end
-
-    if not character then
-        sendError(source, err or 'That character could not be loaded.')
-        return
-    end
-end)
-
-RegisterNetEvent('himo_characters:server:logout', function()
-    local source = source
-    if not canAct(source, 1000) then return end
-
-    exports['himo_core']:SavePlayerPosition(source)
+    pcall(function() exports['himo_core']:SavePlayerPosition(source) end)
     exports['himo_core']:UnloadCharacter(source)
-    sendCharacterList(source)
+    return true
 end)
 
 AddEventHandler('playerDropped', function()
