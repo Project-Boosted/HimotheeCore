@@ -1,0 +1,51 @@
+name: Release HimotheeCore
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tag matches VERSION
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          test "${GITHUB_REF_NAME}" = "v${VERSION}"
+          grep -Fq "version: $VERSION" recipe.yaml
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_core/fxmanifest.lua'
+
+      - name: Build release ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          mkdir -p dist/stage/HimotheeCore
+          rsync -a ./ dist/stage/HimotheeCore/ \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'dist'
+          cd dist/stage
+          zip -qr "../HimotheeCore-v${VERSION}.zip" HimotheeCore
+          cd ..
+          sha256sum "HimotheeCore-v${VERSION}.zip" > "HimotheeCore-v${VERSION}.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          gh release create "v${VERSION}" \
+            "dist/HimotheeCore-v${VERSION}.zip" \
+            "dist/HimotheeCore-v${VERSION}.sha256" \
+            --title "HimotheeCore v${VERSION}" \
+            --generate-notes
