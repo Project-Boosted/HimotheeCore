@@ -2,35 +2,28 @@ local currentCharacter = nil
 local metadata = {}
 local jobs = {}
 local primaryJob = nil
+local groups = {}
+local primaryGroup = nil
 
 local function updateCachedBalance(accountType, balance)
     if not currentCharacter then return end
     currentCharacter.balances = currentCharacter.balances or {}
-
     for _, entry in ipairs(currentCharacter.balances) do
-        if entry.account_type == accountType then
-            entry.balance = balance
-            return
-        end
+        if entry.account_type == accountType then entry.balance = balance return end
     end
-
-    currentCharacter.balances[#currentCharacter.balances + 1] = {
-        account_type = accountType,
-        balance = balance
-    }
+    currentCharacter.balances[#currentCharacter.balances + 1] = { account_type = accountType, balance = balance }
 end
 
 RegisterNetEvent('himo_core:client:characterLoaded', function(character)
     currentCharacter = character
     metadata = type(character.metadata) == 'table' and character.metadata or {}
     jobs = type(character.jobs) == 'table' and character.jobs or {}
+    groups = type(character.groups) == 'table' and character.groups or {}
     LocalPlayer.state:set('himoCharacterLoaded', true, false)
 
     if HimoConfig.Debug then
         print(('[HimotheeCore] Character loaded: %s %s (%s)'):format(
-            character.first_name,
-            character.last_name,
-            character.citizen_id
+            character.first_name, character.last_name, character.citizen_id
         ))
     end
 end)
@@ -40,6 +33,8 @@ RegisterNetEvent('himo_core:client:characterUnloaded', function()
     metadata = {}
     jobs = {}
     primaryJob = nil
+    groups = {}
+    primaryGroup = nil
     LocalPlayer.state:set('himoCharacterLoaded', false, false)
 end)
 
@@ -70,17 +65,16 @@ RegisterNetEvent('himo_core:client:jobsChanged', function(newJobs, newPrimary)
     TriggerEvent('himo_core:client:onJobsChanged', jobs, primaryJob)
 end)
 
-exports('GetCharacter', function()
-    return currentCharacter
+RegisterNetEvent('himo_core:client:groupsChanged', function(newGroups, newPrimary)
+    groups = type(newGroups) == 'table' and newGroups or {}
+    primaryGroup = newPrimary
+    if currentCharacter then currentCharacter.groups = groups end
+    TriggerEvent('himo_core:client:onGroupsChanged', groups, primaryGroup)
 end)
 
-exports('GetCharacterId', function()
-    return currentCharacter and currentCharacter.id or nil
-end)
-
-exports('IsCharacterLoaded', function()
-    return currentCharacter ~= nil
-end)
+exports('GetCharacter', function() return currentCharacter end)
+exports('GetCharacterId', function() return currentCharacter and currentCharacter.id or nil end)
+exports('IsCharacterLoaded', function() return currentCharacter ~= nil end)
 
 exports('GetMetadata', function(key, default)
     if key == nil then return metadata end
@@ -89,10 +83,7 @@ exports('GetMetadata', function(key, default)
     return value
 end)
 
-exports('GetJobs', function()
-    return jobs
-end)
-
-exports('GetPrimaryJob', function()
-    return primaryJob
-end)
+exports('GetJobs', function() return jobs end)
+exports('GetPrimaryJob', function() return primaryJob end)
+exports('GetGroups', function() return groups end)
+exports('GetPrimaryGroup', function() return primaryGroup end)
