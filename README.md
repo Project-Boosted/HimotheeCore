@@ -36,10 +36,10 @@ v0.4.x includes:
 
 v0.4.2 supports two permission authorities:
 
-1. **ACE/txAdmin** — `group.admin` can still receive `himo.admin`, `himo.staff` and `himo.dev` through `permissions.cfg`.
-2. **Himothee account roles** — persistent `owner`, `admin`, `staff` and `dev` roles stored against the Himothee account ID.
+1. **ACE/txAdmin** — `group.admin` can still receive `himo.admin`, `himo.staff` and `himo.dev` through `permissions.cfg` when txAdmin has a linked provider identifier.
+2. **Himothee account roles** — persistent `owner`, `admin`, `staff` and `dev` roles stored against the Himothee account ID and independent of txAdmin provider linking.
 
-On an existing development database with accounts but no Himothee owner, migration 005 assigns the earliest account as `owner` exactly once. On a fresh server, if no owner exists and the first account is created while `himo:autoBootstrapOwner 1` is enabled, that account becomes owner. Once an owner exists, the bootstrap no longer runs.
+Migration 005 creates and seeds the role/permission tables. Once the database is ready, HimotheeCore performs the initial-owner bootstrap at runtime: if `himo:autoBootstrapOwner 1` is enabled and no owner exists, the earliest existing Himothee account becomes `owner`. On a fresh server this naturally becomes the first account created. Once an owner exists, the bootstrap does nothing.
 
 Owner has wildcard `himo.*`. Admin has `himo.admin`, `himo.staff` and `himo.dev`. Staff and developer roles receive their matching permissions.
 
