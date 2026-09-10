@@ -45,6 +45,12 @@ jobs:
             luac -p "$file"
           done < <(find resources -type f -name '*.lua' -print0)
 
+      - name: Validate NUI JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check 'resources/[himo]/himo_characters/web/app.js'
+
       - name: Validate recipe YAML
         run: python3 -c "import yaml; data=yaml.safe_load(open('recipe.yaml', encoding='utf-8')); assert data.get('$engine') == 3; assert isinstance(data.get('tasks'), list) and data['tasks']; print('recipe.yaml OK')"
 
@@ -60,6 +66,23 @@ jobs:
             exit 1
           fi
 
+      - name: Validate Stage 1B resource wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f 'resources/[himo]/himo_characters/fxmanifest.lua'
+          test -f 'resources/[himo]/himo_characters/client/main.lua'
+          test -f 'resources/[himo]/himo_characters/server/main.lua'
+          test -f 'resources/[himo]/himo_characters/web/index.html'
+          test -f 'resources/[himo]/himo_characters/web/style.css'
+          test -f 'resources/[himo]/himo_characters/web/app.js'
+          grep -Fq 'set resources_useSystemChat true' server.cfg
+          grep -Fq 'ensure himo_core' server.cfg
+          grep -Fq 'ensure himo_characters' server.cfg
+          CORE_LINE=$(grep -n '^ensure himo_core$' server.cfg | cut -d: -f1)
+          CHAR_LINE=$(grep -n '^ensure himo_characters$' server.cfg | cut -d: -f1)
+          test "$CORE_LINE" -lt "$CHAR_LINE"
+
       - name: Validate release version consistency
         shell: bash
         run: |
@@ -67,6 +90,7 @@ jobs:
           VERSION="$(tr -d '\r\n' < VERSION)"
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_core/fxmanifest.lua'
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_characters/fxmanifest.lua'
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           echo "Version $VERSION is consistent."
 
