@@ -100,3 +100,34 @@ HimoCommands.register('himometadata', { permission = 'admin' }, function(source,
     if not ok then respond(source, ('Metadata update failed: %s'):format(reason or 'unknown error')) return end
     respond(source, ('Updated player %d metadata %s.'):format(target, key))
 end)
+
+HimoCommands.register('himograntrole', { permission = 'owner' }, function(source, args, raw, respond)
+    local target = tonumber(args[1])
+    local roleName = tostring(args[2] or ''):lower()
+    if not target or roleName == '' then
+        respond(source, 'Usage: /himograntrole <serverId> <owner|admin|staff|dev>')
+        return
+    end
+
+    local targetAccountId = HimoAccounts[target]
+    if not targetAccountId then respond(source, 'Target player has no loaded Himothee account.') return end
+    local grantedBy = HimoAccounts[tonumber(source) or source]
+    local ok, reason = HimoPermissions.grantRole(targetAccountId, roleName, grantedBy)
+    if not ok then respond(source, ('Grant role failed: %s'):format(reason or 'unknown error')) return end
+    respond(source, ('Granted role %s to account %d (player %d).'):format(roleName, targetAccountId, target))
+end)
+
+HimoCommands.register('himorevokerole', { permission = 'owner' }, function(source, args, raw, respond)
+    local target = tonumber(args[1])
+    local roleName = tostring(args[2] or ''):lower()
+    if not target or roleName == '' then
+        respond(source, 'Usage: /himorevokerole <serverId> <owner|admin|staff|dev>')
+        return
+    end
+
+    local targetAccountId = HimoAccounts[target]
+    if not targetAccountId then respond(source, 'Target player has no loaded Himothee account.') return end
+    local ok, reason = HimoPermissions.revokeRole(targetAccountId, roleName)
+    if not ok then respond(source, ('Revoke role failed: %s'):format(reason or 'unknown error')) return end
+    respond(source, ('Revoked role %s from account %d (player %d).'):format(roleName, targetAccountId, target))
+end)
