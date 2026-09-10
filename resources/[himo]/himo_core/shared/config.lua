@@ -1,8 +1,8 @@
 HimoConfig = HimoConfig or {}
 
 HimoConfig.FrameworkName = 'HimotheeCore'
-HimoConfig.Version = '0.2.2'
-HimoConfig.RequiredSchemaVersion = 1
+HimoConfig.Version = '0.3.0'
+HimoConfig.RequiredSchemaVersion = 2
 HimoConfig.Debug = GetConvarInt('himo:debug', 0) == 1
 HimoConfig.MaxCharacters = math.max(1, GetConvarInt('himo:maxCharacters', 4))
 HimoConfig.StartingCash = math.max(0, GetConvarInt('himo:startingCash', 500))
