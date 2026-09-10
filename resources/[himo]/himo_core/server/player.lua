@@ -16,6 +16,10 @@ local function updateCachedBalance(character, accountType, balance)
     }
 end
 
+local function isPrimaryJob(value)
+    return value == true or value == 1 or value == '1'
+end
+
 local function buildPlayerObject(source, character)
     local player = {
         source = source,
@@ -61,7 +65,7 @@ local function buildPlayerObject(source, character)
 
     function player.Functions.GetPrimaryJob()
         for _, job in ipairs(character.jobs or {}) do
-            if tonumber(job.is_primary) == 1 then
+            if isPrimaryJob(job.is_primary) then
                 return job
             end
         end
