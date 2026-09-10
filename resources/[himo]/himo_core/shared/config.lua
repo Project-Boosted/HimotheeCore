@@ -1,8 +1,8 @@
 HimoConfig = HimoConfig or {}
 
 HimoConfig.FrameworkName = 'HimotheeCore'
-HimoConfig.Version = '0.4.1'
-HimoConfig.RequiredSchemaVersion = 3
+HimoConfig.Version = '0.4.2'
+HimoConfig.RequiredSchemaVersion = 4
 HimoConfig.Stage = '1C'
 HimoConfig.Build = 'core-services'
 
