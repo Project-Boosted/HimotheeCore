@@ -1,81 +1,83 @@
-# HimotheeCore v0.2.2 — Stage 1B
+# HimotheeCore v0.3.0 — Stage 1B Lifecycle Refactor
 
-HimotheeCore is a progression-focused FiveM framework being built as a modular alternative to existing monolithic RP frameworks.
+HimotheeCore is a progression-focused FiveM framework being built as a modular alternative to monolithic RP frameworks.
 
-## Current Stage 1 coverage
+## Why v0.3.0 exists
 
-### Stage 1A — foundation
+The first Stage 1B implementation mixed stock FiveM autospawn, a fullscreen character NUI and HimotheeCore's own spawn handling. Real-server testing showed that this was too fragile. v0.3.0 replaces that path with a lifecycle based on the same architectural principles used by current Qbox while keeping HimotheeCore's database, player object and APIs independent.
 
-- txAdmin recipe-ready deployment
-- MySQL/MariaDB schema with migration tracking
-- oxmysql-backed core resource
-- account + identifier lifecycle
-- FiveM temporary-to-final source migration during join
-- multi-character capable character storage
-- account balances and transaction ledger
-- jobs + grades + character job membership
-- generic organisations + roles + permissions
-- persistent vehicles
-- audit logging
-- framework schema/version validation
+Key rules in v0.3.0:
 
-### Stage 1B — character & player lifecycle
+- `basic-gamemode` is stopped; HimotheeCore is the only owner of player login/spawning.
+- `ox_lib` context/input UI replaces the fullscreen character-browser NUI.
+- character selection runs in a solo tutorial/preview session with a scripted camera.
+- loading character data and entering the game world are separate lifecycle states.
+- `himo_spawn` owns spawn choice.
+- `himo_appearance` owns appearance/clothing persistence.
+- `himo_core` becomes world-ready only after the final spawn handoff.
+- tutorial mode is explicitly ended before normal gameplay is released.
 
-- dedicated `himo_characters` resource
-- automatic character selector after joining
-- existing-character cards
-- character creation form
-- account-safe character selection
-- Himothee-owned native character spawn path with bounded model/collision waits
-- black-screen watchdog/recovery path
-- NUI closed-state transparency so the selector cannot remain as an opaque overlay over gameplay
-- return to the character's last saved position
-- configurable default spawn for new characters
-- periodic server-authoritative position autosave
-- disconnect position-save attempt
-- Stage 1B Player Object/API
-- synchronized client character/money state
-- `/switchcharacter` development command
-- `/himounblack` temporary recovery/debug command
+## Resources
+
+```text
+resources/[himo]/
+  himo_core        account, character data, Player Object, lifecycle authority
+  himo_characters  multicharacter selection/creation and preview session
+  himo_spawn       spawn-location selection
+  himo_appearance  standalone clothing/model persistence and editor
+```
 
 ## txAdmin recipe
 
-Use this exact raw recipe URL in txAdmin Server Deployer:
+Use this exact raw recipe URL:
 
     https://raw.githubusercontent.com/Project-Boosted/HimotheeCore/main/recipe.yaml
 
-Do not paste the repository homepage URL into the Recipe URL box.
-
-The recipe downloads the current CFX resource tree, oxmysql and the current HimotheeCore `main` branch, then installs the database automatically.
+A clean deployment installs the current CFX resource tree, `ox_lib`, `oxmysql`, HimotheeCore resources, and all required SQL automatically.
 
 ## Database
 
-Fresh installs run:
+Fresh/update deployments run:
 
 1. `database/001_schema.sql`
 2. `database/002_seed.sql`
+3. `database/003_stage1b_lifecycle.sql`
 
-The schema version is recorded in `himo_schema_migrations`.
+Schema version 2 adds `himo_character_appearance`, keyed directly to the Himothee character ID. Existing accounts, characters, balances, jobs and saved positions are retained.
 
-v0.2.2 does not require a schema migration; it uses the Stage 1A character metadata/position tables already installed.
+## v0.3.0 login flow
 
-## Character flow
+```text
+FiveM connection
+  -> account resolution
+  -> solo tutorial/preview session
+  -> ox_lib character selector
+  -> server-authoritative character load/create
+  -> himo_spawn location selector
+  -> apply saved/default appearance
+  -> final spawn
+  -> himo_core finishLogin
+  -> NetworkEndTutorialSession
+  -> world-ready Player Object
+  -> gameplay
+```
 
-Normal players should no longer need `/himocreate` or `/himoload`.
+New characters are offered the standalone Himothee clothing editor after their first successful world spawn. Existing characters without saved v0.3.0 appearance data receive the gender-appropriate freemode model and can use `/himoappearance` to save clothing.
 
-On join:
+## Stage 1A foundation retained
 
-    FiveM connection
-      -> Himothee account resolution
-      -> character selector
-      -> create or choose character
-      -> HimotheeCore character load
-      -> bounded native spawn
-      -> last saved position/default spawn
-      -> selector NUI removed/transparent
-      -> active Player Object
+- account + identifier lifecycle
+- multi-character persistence
+- cash/bank balances and transaction ledger
+- jobs + grades + multi-job groundwork
+- organisations + granular-role groundwork
+- persistent vehicles
+- audit logging
+- migration tracking
+- periodic/disconnect position saving
+- Stage 1B Player Object
 
-Temporary debug commands remain available while Stage 1 is under development:
+## Development commands
 
 - `/himoaccount`
 - `/himocreate Firstname Lastname YYYY-MM-DD gender`
@@ -83,35 +85,33 @@ Temporary debug commands remain available while Stage 1 is under development:
 - `/himowhoami`
 - `/himoplayer`
 - `/switchcharacter`
-- `/himounblack`
+- `/himoappearance`
+
+The direct create/load commands remain temporary development tools; normal players should use the character selector.
 
 ## Resource start order
 
-`oxmysql` must start before `himo_core`, and `himo_core` must start before `himo_characters`. The supplied `server.cfg` already enforces this.
+The supplied `server.cfg` enforces:
 
-## Configuration
+```text
+spawnmanager
+baseevents
+ox_lib
+oxmysql
+himo_core
+himo_appearance
+himo_spawn
+himo_characters
+```
 
-Current Stage 1B convars in `server.cfg`:
-
-    setr himo:maxCharacters 4
-    setr himo:startingCash 500
-    setr himo:startingBank 5000
-    setr himo:autoSaveMs 60000
-    setr himo:spawnX 215.76
-    setr himo:spawnY -810.12
-    setr himo:spawnZ 30.73
-    setr himo:spawnHeading 157.0
-
-## API
-
-See `docs/API.md` for the current Player Object, character, money and lifecycle APIs.
+`basic-gamemode` is explicitly stopped.
 
 ## Status
 
-This is still a development/testing framework. Stage 1B must pass real-server character-selector, spawn, autosave and reconnect tests before Stage 2 progression work begins.
+v0.3.0 is a development acceptance build. It must pass character preview, existing/new character login, spawn selection, world visibility, reconnect position persistence, switching, and clothing persistence before Stage 1B is frozen.
+
+See `docs/STAGE1B_V030_TEST.md` for the real-server acceptance sequence and `docs/API.md` for current framework APIs.
 
 ## GitHub automation
 
-- Every push/pull request to `main` runs `.github/workflows/validate.yml`.
-- Validation checks Lua syntax, NUI JavaScript syntax, closed-state NUI transparency, recipe YAML, resource wiring, release version consistency and SQL import against MariaDB.
-- Tags matching `v*` run `.github/workflows/release.yml` and publish a release ZIP + SHA-256 checksum.
+Every push/PR to `main` validates Lua syntax, recipe YAML, txAdmin dependency wiring, stopped stock autospawn, absence of the old fullscreen character NUI, resource ordering, version consistency, and SQL/schema v2 against MariaDB. Version tags build a release ZIP and SHA-256 automatically.
