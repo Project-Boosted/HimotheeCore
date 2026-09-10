@@ -1,5 +1,6 @@
 -- HimotheeCore v0.4.2 - native account roles and permissions
 -- ACE remains supported; these tables provide framework-owned persistent roles.
+-- Initial owner assignment is intentionally performed by himo_core at runtime.
 
 SET NAMES utf8mb4;
 
@@ -56,20 +57,6 @@ INSERT IGNORE INTO `himo_role_permissions` (`role_name`, `permission`) VALUES
     ('admin', 'himo.dev'),
     ('staff', 'himo.staff'),
     ('dev', 'himo.dev');
-
--- Upgrade bootstrap: if accounts already exist but no Himothee owner exists,
--- promote the earliest account exactly once.
-INSERT INTO `himo_account_roles` (`account_id`, `role_name`, `granted_by_account_id`)
-SELECT a.`id`, 'owner', NULL
-FROM `himo_accounts` a
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM `himo_account_roles` ar
-    WHERE ar.`role_name` = 'owner'
-)
-ORDER BY a.`id` ASC
-LIMIT 1
-ON DUPLICATE KEY UPDATE `role_name` = VALUES(`role_name`);
 
 INSERT INTO `himo_schema_migrations` (`version`, `name`)
 VALUES (4, '0004_stage1c_account_roles')
