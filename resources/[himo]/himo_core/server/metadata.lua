@@ -37,11 +37,26 @@ local function persist(character)
     return true
 end
 
+local function applyDefaults(character)
+    character.metadata = type(character.metadata) == 'table' and character.metadata or {}
+    local changed = false
+
+    for key, value in pairs(HimoConfig.DefaultMetadata or {}) do
+        if character.metadata[key] == nil then
+            character.metadata[key] = value
+            changed = true
+        end
+    end
+
+    if changed then persist(character) end
+end
+
 function HimoMetadata.sync(source)
     source = tonumber(source) or source
     local character = HimoPlayers[source]
     if not character then return false end
 
+    applyDefaults(character)
     HimoState.setPlayer(source, 'himo:metadata', clonePublic(character.metadata))
     TriggerClientEvent('himo_core:client:metadataSnapshot', source, character.metadata or {})
     return true
@@ -51,6 +66,7 @@ function HimoMetadata.get(source, key, default)
     source = tonumber(source) or source
     local character = HimoPlayers[source]
     if not character then return default end
+    applyDefaults(character)
     if key == nil then return character.metadata or {} end
     if not validKey(key) then return default end
 
@@ -66,7 +82,7 @@ function HimoMetadata.set(source, key, value)
     local character = HimoPlayers[source]
     if not character then return false, 'No character is loaded.' end
 
-    character.metadata = character.metadata or {}
+    applyDefaults(character)
     local previous = character.metadata[key]
     character.metadata[key] = value
 
