@@ -18,6 +18,16 @@ local function endTutorialSession()
     return not NetworkIsInTutorialSession()
 end
 
+local function releasePlayerState()
+    local ped = PlayerPedId()
+    if ped and ped ~= 0 and DoesEntityExist(ped) then
+        FreezeEntityPosition(ped, false)
+        SetEntityInvincible(ped, false)
+        SetEntityVisible(ped, true, false)
+        SetEntityCollision(ped, true, true)
+    end
+end
+
 RegisterNetEvent('himo_core:client:playerLoaded', function(character)
     ShutdownLoadingScreen()
     ShutdownLoadingScreenNui()
@@ -30,6 +40,14 @@ RegisterNetEvent('himo_core:client:playerLoaded', function(character)
     worldReady = true
     TriggerEvent('himo_core:client:onPlayerLoaded', character)
     debugLog(('Player world-ready: %s'):format(character and character.citizen_id or 'unknown'))
+
+    -- Character selection intentionally keeps the preview ped frozen/invincible.
+    -- Give the spawn handoff one frame to finish, then enforce normal gameplay
+    -- state after tutorial mode has ended.
+    CreateThread(function()
+        Wait(300)
+        releasePlayerState()
+    end)
 end)
 
 RegisterNetEvent('himo_core:client:characterUnloaded', function()
