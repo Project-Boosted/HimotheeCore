@@ -1,4 +1,4 @@
-# HimotheeCore v0.2.1 — Stage 1B
+# HimotheeCore v0.2.2 — Stage 1B
 
 HimotheeCore is a progression-focused FiveM framework being built as a modular alternative to existing monolithic RP frameworks.
 
@@ -28,6 +28,7 @@ HimotheeCore is a progression-focused FiveM framework being built as a modular a
 - account-safe character selection
 - Himothee-owned native character spawn path with bounded model/collision waits
 - black-screen watchdog/recovery path
+- NUI closed-state transparency so the selector cannot remain as an opaque overlay over gameplay
 - return to the character's last saved position
 - configurable default spawn for new characters
 - periodic server-authoritative position autosave
@@ -35,7 +36,7 @@ HimotheeCore is a progression-focused FiveM framework being built as a modular a
 - Stage 1B Player Object/API
 - synchronized client character/money state
 - `/switchcharacter` development command
-- `/himounblack` temporary black-screen recovery command
+- `/himounblack` temporary recovery/debug command
 
 ## txAdmin recipe
 
@@ -56,7 +57,7 @@ Fresh installs run:
 
 The schema version is recorded in `himo_schema_migrations`.
 
-v0.2.1 does not require a schema migration; it uses the Stage 1A character metadata/position tables already installed.
+v0.2.2 does not require a schema migration; it uses the Stage 1A character metadata/position tables already installed.
 
 ## Character flow
 
@@ -71,6 +72,7 @@ On join:
       -> HimotheeCore character load
       -> bounded native spawn
       -> last saved position/default spawn
+      -> selector NUI removed/transparent
       -> active Player Object
 
 Temporary debug commands remain available while Stage 1 is under development:
@@ -111,5 +113,5 @@ This is still a development/testing framework. Stage 1B must pass real-server ch
 ## GitHub automation
 
 - Every push/pull request to `main` runs `.github/workflows/validate.yml`.
-- Validation checks Lua syntax, NUI JavaScript syntax, recipe YAML, resource wiring, release version consistency and SQL import against MariaDB.
+- Validation checks Lua syntax, NUI JavaScript syntax, closed-state NUI transparency, recipe YAML, resource wiring, release version consistency and SQL import against MariaDB.
 - Tags matching `v*` run `.github/workflows/release.yml` and publish a release ZIP + SHA-256 checksum.
