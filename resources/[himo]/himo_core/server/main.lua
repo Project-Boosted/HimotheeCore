@@ -2,6 +2,10 @@ HimoAccounts = HimoAccounts or {}
 
 math.randomseed(os.time())
 
+local function sourceKey(value)
+    return tonumber(value) or value
+end
+
 local function chat(source, message)
     TriggerClientEvent('chat:addMessage', source, {
         color = { 173, 92, 255 },
@@ -9,8 +13,37 @@ local function chat(source, message)
     })
 end
 
+local function ensureAccountLoaded(playerSource)
+    playerSource = sourceKey(playerSource)
+
+    if HimoAccounts[playerSource] then
+        return HimoAccounts[playerSource]
+    end
+
+    if not HimoDatabase.awaitReady(15000) then
+        return nil, 'HimotheeCore database is not ready.'
+    end
+
+    local ok, accountId, reason = pcall(function()
+        local id, err = HimoIdentifiers.ensureAccount(playerSource)
+        return id, err
+    end)
+
+    if not ok then
+        HimoLogger.error(('Account resolution failed for source %s: %s'):format(playerSource, accountId))
+        return nil, 'HimotheeCore could not load your account.'
+    end
+
+    if not accountId then
+        return nil, reason or 'HimotheeCore could not resolve your account.'
+    end
+
+    HimoAccounts[playerSource] = accountId
+    return accountId
+end
+
 AddEventHandler('playerConnecting', function(playerName, setKickReason, deferrals)
-    local source = source
+    local connectingSource = sourceKey(source)
     deferrals.defer()
     Wait(0)
     deferrals.update('HimotheeCore: validating database...')
@@ -22,44 +55,75 @@ AddEventHandler('playerConnecting', function(playerName, setKickReason, deferral
 
     deferrals.update('HimotheeCore: loading account...')
 
-    local ok, accountId, reason = pcall(function()
-        local id, err = HimoIdentifiers.ensureAccount(source)
-        return id, err
-    end)
-
-    if not ok then
-        HimoLogger.error(('Account load failed for %s: %s'):format(playerName, accountId))
-        deferrals.done('HimotheeCore could not load your account.')
-        return
-    end
-
+    local accountId, reason = ensureAccountLoaded(connectingSource)
     if not accountId then
+        HimoLogger.error(('Account load failed for %s: %s'):format(playerName, reason or 'unknown error'))
         deferrals.done(reason or 'HimotheeCore rejected the connection.')
         return
     end
 
-    HimoAccounts[source] = accountId
+    HimoLogger.debug(('Connection account resolved: temporary source %s -> account %d'):format(
+        connectingSource, accountId
+    ))
+
     deferrals.done()
 end)
 
+-- FiveM uses a temporary source during playerConnecting and assigns the final
+-- in-game source when playerJoining fires. Carry the account mapping across
+-- that boundary so all later framework calls use the live player source.
+AddEventHandler('playerJoining', function(oldId)
+    local joinedSource = sourceKey(source)
+    local temporarySource = sourceKey(oldId)
+
+    local accountId = HimoAccounts[temporarySource]
+        or HimoAccounts[tostring(oldId)]
+
+    if accountId then
+        HimoAccounts[joinedSource] = accountId
+        HimoAccounts[temporarySource] = nil
+        HimoAccounts[tostring(oldId)] = nil
+
+        HimoLogger.debug(('Join account migrated: source %s -> %s, account %d'):format(
+            temporarySource, joinedSource, accountId
+        ))
+        return
+    end
+
+    -- Defensive fallback for unusual resource restarts/timing. At this point
+    -- the final player source exists, so identifiers can be resolved again.
+    CreateThread(function()
+        local resolved, reason = ensureAccountLoaded(joinedSource)
+        if resolved then
+            HimoLogger.debug(('Join account re-resolved for source %s -> account %d'):format(
+                joinedSource, resolved
+            ))
+        else
+            HimoLogger.error(('Could not resolve joined source %s: %s'):format(
+                joinedSource, reason or 'unknown error'
+            ))
+        end
+    end)
+end)
+
 AddEventHandler('playerDropped', function(reason)
-    local source = source
-    local character = HimoPlayers[source]
+    local droppedSource = sourceKey(source)
+    local character = HimoPlayers[droppedSource]
 
     if character then
         HimoDatabase.audit({
-            accountId = HimoAccounts[source],
+            accountId = HimoAccounts[droppedSource],
             characterId = character.id,
-            source = source,
+            source = droppedSource,
             action = 'player.dropped',
             targetType = 'character',
             targetId = character.id,
             data = { reason = reason }
         })
-        HimoCharacters.unload(source)
+        HimoCharacters.unload(droppedSource)
     end
 
-    HimoAccounts[source] = nil
+    HimoAccounts[droppedSource] = nil
 end)
 
 RegisterCommand('himoaccount', function(source)
@@ -67,13 +131,26 @@ RegisterCommand('himoaccount', function(source)
         HimoLogger.info('himoaccount must be run by an in-game player.')
         return
     end
-    chat(source, ('Account ID: %s'):format(HimoAccounts[source] or 'not loaded'))
+
+    local accountId, reason = ensureAccountLoaded(source)
+    if not accountId then
+        chat(source, ('Account load failed: %s'):format(reason or 'unknown error'))
+        return
+    end
+
+    chat(source, ('Account ID: %s'):format(accountId))
 end, false)
 
 RegisterCommand('himocreate', function(source, args)
     if source == 0 then return end
     if #args < 4 then
         chat(source, 'Usage: /himocreate Firstname Lastname YYYY-MM-DD gender')
+        return
+    end
+
+    local accountId, accountReason = ensureAccountLoaded(source)
+    if not accountId then
+        chat(source, ('Account load failed: %s'):format(accountReason or 'unknown error'))
         return
     end
 
@@ -97,6 +174,13 @@ end, false)
 
 RegisterCommand('himoload', function(source, args)
     if source == 0 then return end
+
+    local accountId, accountReason = ensureAccountLoaded(source)
+    if not accountId then
+        chat(source, ('Account load failed: %s'):format(accountReason or 'unknown error'))
+        return
+    end
+
     local characterId = tonumber(args[1])
     if not characterId then
         chat(source, 'Usage: /himoload <characterId>')
@@ -125,7 +209,11 @@ RegisterCommand('himowhoami', function(source)
 end, false)
 
 exports('GetAccountId', function(source)
-    return HimoAccounts[source]
+    return HimoAccounts[sourceKey(source)]
+end)
+
+exports('EnsureAccount', function(source)
+    return ensureAccountLoaded(source)
 end)
 
 exports('GetCharacter', function(source)
@@ -138,16 +226,20 @@ exports('GetCharacterId', function(source)
 end)
 
 exports('GetCharacters', function(source)
-    local accountId = HimoAccounts[source]
+    local accountId = HimoAccounts[sourceKey(source)]
     if not accountId then return {} end
     return HimoCharacters.list(accountId)
 end)
 
 exports('CreateCharacter', function(source, data)
+    local accountId = HimoAccounts[sourceKey(source)] or ensureAccountLoaded(source)
+    if not accountId then return nil, 'Account is not loaded.' end
     return HimoCharacters.create(source, data)
 end)
 
 exports('LoadCharacter', function(source, characterId)
+    local accountId = HimoAccounts[sourceKey(source)] or ensureAccountLoaded(source)
+    if not accountId then return nil, 'Account is not loaded.' end
     return HimoCharacters.load(source, characterId)
 end)
 
