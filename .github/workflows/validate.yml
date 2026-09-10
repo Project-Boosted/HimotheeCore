@@ -51,6 +51,17 @@ jobs:
           set -euo pipefail
           node --check 'resources/[himo]/himo_characters/web/app.js'
 
+      - name: Validate NUI closed-state transparency
+        shell: bash
+        run: |
+          set -euo pipefail
+          CSS='resources/[himo]/himo_characters/web/style.css'
+          grep -Fq 'html {' "$CSS"
+          grep -Fq 'background: transparent !important;' "$CSS"
+          grep -Fq 'body:not(.hidden) {' "$CSS"
+          grep -Fq 'body.hidden {' "$CSS"
+          grep -Fq 'display: none !important;' "$CSS"
+
       - name: Validate recipe YAML
         shell: bash
         run: |
