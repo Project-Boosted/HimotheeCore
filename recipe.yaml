@@ -2,14 +2,13 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.1.4
+version: 0.2.0
 author: HimotheeGaming
-description: Stage 1 foundation for the HimotheeCore progression-focused FiveM framework.
+description: Stage 1B character and player lifecycle for the HimotheeCore progression-focused FiveM framework.
 
 tasks:
   # Install the current Cfx.re default resources as one tree. This follows the
-  # official CFX/Qbox txAdmin deployment pattern and avoids fragile folder moves
-  # when upstream system resources change location or become bundled resources.
+  # official CFX/Qbox txAdmin deployment pattern and avoids fragile folder moves.
   - action: download_github
     src: https://github.com/citizenfx/cfx-server-data
     ref: master
