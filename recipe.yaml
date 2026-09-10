@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.3.1
+version: 0.3.2
 author: HimotheeGaming
-description: Qbox-style HimotheeCore lifecycle with Illenium Appearance character-creation bridge.
+description: Qbox-style HimotheeCore lifecycle with direct Illenium Appearance first-character handoff.
 
 tasks:
   # Current Cfx.re default resources.
