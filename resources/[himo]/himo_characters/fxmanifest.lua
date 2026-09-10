@@ -3,28 +3,20 @@ game 'gta5'
 
 name 'himo_characters'
 author 'HimotheeGaming'
-description 'HimotheeCore multicharacter selection, creation and spawn lifecycle'
-version '0.2.2'
+description 'HimotheeCore tutorial-session multicharacter lifecycle'
+version '0.3.0'
 
 lua54 'yes'
 
-ui_page 'web/index.html'
+shared_script '@ox_lib/init.lua'
 
-files {
-    'web/index.html',
-    'web/style.css',
-    'web/app.js'
-}
-
-client_scripts {
-    'client/main.lua'
-}
-
-server_scripts {
-    'server/main.lua'
-}
+client_script 'client/main.lua'
+server_script 'server/main.lua'
 
 dependencies {
+    'ox_lib',
     'himo_core',
+    'himo_spawn',
+    'himo_appearance',
     'spawnmanager'
 }
