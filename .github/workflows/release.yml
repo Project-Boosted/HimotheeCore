@@ -23,6 +23,7 @@ jobs:
           test "${GITHUB_REF_NAME}" = "v${VERSION}"
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_core/fxmanifest.lua'
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_qb_bridge/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_characters/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_spawn/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_appearance/fxmanifest.lua'
