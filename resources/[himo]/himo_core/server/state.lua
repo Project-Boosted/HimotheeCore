@@ -32,9 +32,18 @@ end
 
 function HimoState.setFrameworkReady(ready)
     GlobalState['himothee_core:version'] = HimoConfig.Version
-    GlobalState['himothee_core:stage'] = '1C'
-    GlobalState['himothee_core:build'] = 'core-services'
+    GlobalState['himothee_core:stage'] = HimoConfig.Stage or '1C'
+    GlobalState['himothee_core:build'] = HimoConfig.Build or 'core-services'
     GlobalState['himothee_core:ready'] = ready == true
+end
+
+function HimoState.syncCharacter(source, character)
+    if not character then return false end
+    HimoState.setPlayer(source, 'himo:characterId', character.id)
+    HimoState.setPlayer(source, 'himo:citizenId', character.citizen_id)
+    HimoState.setPlayer(source, 'himo:characterLoaded', true)
+    HimoState.setPlayer(source, 'himo:playerLoaded', false)
+    return true
 end
 
 function HimoState.clearCharacter(source)
@@ -46,6 +55,14 @@ function HimoState.clearCharacter(source)
     HimoState.setPlayer(source, 'himo:onDuty', false)
     HimoState.setPlayer(source, 'himo:metadata', {})
 end
+
+AddEventHandler('himo_core:server:characterLoaded', function(source, character)
+    HimoState.syncCharacter(source, character)
+end)
+
+AddEventHandler('himo_core:server:characterUnloaded', function(source)
+    HimoState.clearCharacter(source)
+end)
 
 exports('SetPlayerState', HimoState.setPlayer)
 exports('GetPlayerState', HimoState.getPlayer)
