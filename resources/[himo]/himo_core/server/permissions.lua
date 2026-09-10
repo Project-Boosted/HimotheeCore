@@ -1,5 +1,7 @@
 HimoPermissions = HimoPermissions or {}
 
+local roleCache = {}
+
 local function normalize(permission)
     permission = tostring(permission or '')
     if permission == '' then return nil end
@@ -7,25 +9,137 @@ local function normalize(permission)
     return 'himo.' .. permission
 end
 
+local function sourceKey(source)
+    return tonumber(source) or source
+end
+
+local function loadAccount(accountId)
+    accountId = tonumber(accountId)
+    if not accountId then return { roles = {}, permissions = {} } end
+    if roleCache[accountId] then return roleCache[accountId] end
+
+    local rows = MySQL.query.await([[
+        SELECT ar.`role_name`, rp.`permission`
+        FROM `himo_account_roles` ar
+        LEFT JOIN `himo_role_permissions` rp ON rp.`role_name` = ar.`role_name`
+        WHERE ar.`account_id` = ?
+    ]], { accountId }) or {}
+
+    local data = { roles = {}, permissions = {} }
+    for _, row in ipairs(rows) do
+        data.roles[row.role_name] = true
+        if row.permission then data.permissions[row.permission] = true end
+    end
+
+    roleCache[accountId] = data
+    return data
+end
+
+function HimoPermissions.invalidate(accountId)
+    if accountId then roleCache[tonumber(accountId)] = nil else roleCache = {} end
+end
+
+function HimoPermissions.bootstrapOwner(accountId)
+    accountId = tonumber(accountId)
+    if not accountId then return false end
+    if GetConvarInt('himo:autoBootstrapOwner', 1) ~= 1 then return false end
+
+    local existingOwner = MySQL.scalar.await([[
+        SELECT `account_id` FROM `himo_account_roles`
+        WHERE `role_name` = 'owner' LIMIT 1
+    ]])
+    if existingOwner then return false end
+
+    local stats = MySQL.single.await([[
+        SELECT COUNT(*) AS `count`, MIN(`id`) AS `first_id`
+        FROM `himo_accounts`
+    ]])
+    local count = stats and tonumber(stats.count) or 0
+    local firstId = stats and tonumber(stats.first_id) or nil
+    if count ~= 1 or firstId ~= accountId then return false end
+
+    MySQL.insert.await([[
+        INSERT IGNORE INTO `himo_account_roles`
+            (`account_id`, `role_name`, `granted_by_account_id`)
+        VALUES (?, 'owner', NULL)
+    ]], { accountId })
+    HimoPermissions.invalidate(accountId)
+    HimoLogger.info(('Bootstrapped Himothee owner role for account %d.'):format(accountId))
+    return true
+end
+
+function HimoPermissions.hasAccount(accountId, permission)
+    local ace = normalize(permission)
+    if not ace then return false end
+    local data = loadAccount(accountId)
+    return data.permissions['himo.*'] == true or data.permissions[ace] == true
+end
+
 function HimoPermissions.has(source, permission)
-    source = tonumber(source) or source
+    source = sourceKey(source)
     if source == 0 then return true end
 
     local ace = normalize(permission)
     if not ace then return false end
-    return IsPlayerAceAllowed(source, ace) == true
+
+    if IsPlayerAceAllowed(source, ace) == true then return true end
+
+    local accountId = HimoAccounts and HimoAccounts[source] or nil
+    if not accountId then return false end
+    return HimoPermissions.hasAccount(accountId, ace)
 end
 
 function HimoPermissions.any(source, permissions)
-    if type(permissions) == 'string' then
-        return HimoPermissions.has(source, permissions)
-    end
+    if type(permissions) == 'string' then return HimoPermissions.has(source, permissions) end
     if type(permissions) ~= 'table' then return false end
-
     for _, permission in ipairs(permissions) do
         if HimoPermissions.has(source, permission) then return true end
     end
     return false
+end
+
+function HimoPermissions.getRoles(source)
+    source = sourceKey(source)
+    local accountId = HimoAccounts and HimoAccounts[source] or nil
+    if not accountId then return {} end
+    local data = loadAccount(accountId)
+    local roles = {}
+    for role in pairs(data.roles) do roles[#roles + 1] = role end
+    table.sort(roles)
+    return roles
+end
+
+function HimoPermissions.grantRole(targetAccountId, roleName, grantedByAccountId)
+    targetAccountId = tonumber(targetAccountId)
+    grantedByAccountId = tonumber(grantedByAccountId)
+    roleName = tostring(roleName or ''):lower()
+    if not targetAccountId or roleName == '' then return false, 'Account and role are required.' end
+
+    local exists = MySQL.scalar.await('SELECT 1 FROM `himo_roles` WHERE `name` = ? LIMIT 1', { roleName })
+    if not exists then return false, 'Unknown role.' end
+
+    MySQL.insert.await([[
+        INSERT INTO `himo_account_roles` (`account_id`, `role_name`, `granted_by_account_id`)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE `granted_by_account_id` = VALUES(`granted_by_account_id`), `granted_at` = CURRENT_TIMESTAMP
+    ]], { targetAccountId, roleName, grantedByAccountId })
+    HimoPermissions.invalidate(targetAccountId)
+    return true
+end
+
+function HimoPermissions.revokeRole(targetAccountId, roleName)
+    targetAccountId = tonumber(targetAccountId)
+    roleName = tostring(roleName or ''):lower()
+    if not targetAccountId or roleName == '' then return false, 'Account and role are required.' end
+
+    if roleName == 'owner' then
+        local owners = tonumber(MySQL.scalar.await("SELECT COUNT(*) FROM `himo_account_roles` WHERE `role_name` = 'owner'")) or 0
+        if owners <= 1 then return false, 'Cannot remove the last owner.' end
+    end
+
+    MySQL.update.await('DELETE FROM `himo_account_roles` WHERE `account_id` = ? AND `role_name` = ?', { targetAccountId, roleName })
+    HimoPermissions.invalidate(targetAccountId)
+    return true
 end
 
 function HimoPermissions.require(source, permission)
@@ -39,3 +153,6 @@ end
 
 exports('HasPermission', HimoPermissions.has)
 exports('HasAnyPermission', HimoPermissions.any)
+exports('GetRoles', HimoPermissions.getRoles)
+exports('GrantRole', HimoPermissions.grantRole)
+exports('RevokeRole', HimoPermissions.revokeRole)
