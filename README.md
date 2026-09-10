@@ -1,6 +1,6 @@
-# HimotheeCore v0.4.0 — Stage 1C Core Framework Services
+# HimotheeCore v0.4.1 — Stage 1C Core Framework Services
 
-HimotheeCore is a modular, progression-focused FiveM framework. v0.4.0 keeps the real-server-tested multicharacter/spawn/Illenium lifecycle from v0.3.2 and adds the framework services that future jobs, activities, skills, businesses and gameplay resources will use.
+HimotheeCore is a modular, progression-focused FiveM framework. v0.4.1 keeps the real-server-tested multicharacter/spawn/Illenium lifecycle from v0.3.2, the Stage 1C framework services from v0.4.0, and fixes txAdmin administrator ACE principal wiring.
 
 ## Current architecture
 
@@ -18,9 +18,9 @@ FiveM connection
 
 `basic-gamemode` remains stopped so HimotheeCore is the only owner of player login/spawning.
 
-## Stage 1C additions
+## Stage 1C services
 
-v0.4.0 adds:
+v0.4.x includes:
 
 - namespaced framework/player statebags and global readiness state
 - persistent metadata service with controlled replication
@@ -35,6 +35,10 @@ v0.4.0 adds:
 - stronger QB compatibility for money, metadata, jobs, duty, gangs/groups and callbacks
 - `/himocoretest` runtime acceptance command
 - schema version 3
+
+## v0.4.1 permission fix
+
+The txAdmin-generated `server.cfg` now contains `{{addPrincipalsMaster}}` before `exec permissions.cfg`. During deployment txAdmin replaces that placeholder with `add_principal identifier.* group.admin` lines for the deploying admin/master account. `permissions.cfg` then grants `group.admin` the `himo.admin`, `himo.staff` and `himo.dev` ACE permissions.
 
 ## Resources
 
@@ -64,7 +68,7 @@ The Himothee migration chain is:
 3. `003_stage1b_lifecycle.sql` — appearance/lifecycle schema
 4. `004_stage1c_core_services.sql` — sessions + generic groups
 
-v0.4.0 requires **schema version 3**. Existing account, character, money, position and appearance data is preserved.
+v0.4.1 requires **schema version 3**. Existing account, character, money, position and appearance data is preserved. There is no new SQL migration between v0.4.0 and v0.4.1.
 
 ## Player Object example
 
@@ -137,12 +141,12 @@ Staff/admin acceptance commands:
 
 ## QB compatibility
 
-`himo_qb_bridge` provides `qb-core` for specifically mapped third-party APIs. v0.4.0 covers common PlayerData, money, metadata, job/duty, gang/group, player lookup, permissions and QB callback transport.
+`himo_qb_bridge` provides `qb-core` for specifically mapped third-party APIs. v0.4.x covers common PlayerData, money, metadata, job/duty, gang/group, player lookup, permissions and QB callback transport.
 
 It is intentionally not advertised as universal QB compatibility. An API is only added to the bridge after HimotheeCore has a native equivalent and it has been tested.
 
 ## Testing
 
-Before Stage 1C is frozen, v0.4.0 must pass the real txAdmin acceptance plan in `docs/STAGE1C_V040_TEST.md`, including the existing character/spawn/Illenium regression tests, metadata persistence, duty state, session ownership and txAdmin restart saving.
+Stage 1C must pass the real txAdmin acceptance plan in `docs/STAGE1C_V040_TEST.md`, including the existing character/spawn/Illenium regression tests, metadata persistence, duty state, session ownership and txAdmin restart saving.
 
 GitHub Actions validates Lua syntax, recipe YAML, dependency/resource order, Stage 1C service presence, version consistency and schema version 3 against MariaDB on every push/PR.
