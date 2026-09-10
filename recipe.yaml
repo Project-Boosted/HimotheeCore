@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.4.0
+version: 0.4.1
 author: HimotheeGaming
-description: Stage 1C core framework services with stable multicharacter, spawn and Illenium appearance lifecycle.
+description: Stage 1C core framework services with txAdmin ACE principal wiring and stable multicharacter, spawn and Illenium appearance lifecycle.
 
 tasks:
   # Current Cfx.re default resources.
