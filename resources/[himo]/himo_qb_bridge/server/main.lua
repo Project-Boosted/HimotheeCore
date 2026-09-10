@@ -8,7 +8,8 @@ local QBCore = {
                 grades = { [0] = { name = 'none', isboss = false } }
             }
         }
-    }
+    },
+    ServerCallbacks = {}
 }
 
 local function isTrue(value)
@@ -22,9 +23,7 @@ end
 
 local function getBalance(character, accountType)
     for _, entry in ipairs(character and character.balances or {}) do
-        if entry.account_type == accountType then
-            return tonumber(entry.balance) or 0
-        end
+        if entry.account_type == accountType then return tonumber(entry.balance) or 0 end
     end
     return 0
 end
@@ -53,7 +52,7 @@ local function buildJob(character)
         payment = tonumber(row.salary) or 0,
         isboss = isTrue(row.is_boss),
         grade = {
-            name = row.grade_label or tostring(row.grade or 0),
+            name = row.grade_name or row.grade_label or tostring(row.grade or 0),
             level = tonumber(row.grade) or 0
         }
     }
@@ -80,6 +79,14 @@ local function buildPlayerData(source, character)
     local job = buildJob(character)
     registerSharedJob(job)
 
+    local qbMetadata = {}
+    for key, value in pairs(metadata) do qbMetadata[key] = value end
+    qbMetadata.tracker = metadata.tracker == true
+    qbMetadata.isdead = metadata.isdead == true
+    qbMetadata.inlaststand = metadata.inlaststand == true
+    qbMetadata.ishandcuffed = metadata.ishandcuffed == true
+    qbMetadata.armor = tonumber(character.armour or metadata.armor) or 0
+
     return {
         source = source,
         citizenid = character.citizen_id,
@@ -94,13 +101,7 @@ local function buildPlayerData(source, character)
             cash = getBalance(character, 'cash'),
             bank = getBalance(character, 'bank')
         },
-        metadata = {
-            tracker = metadata.tracker == true,
-            isdead = metadata.isdead == true,
-            inlaststand = metadata.inlaststand == true,
-            ishandcuffed = metadata.ishandcuffed == true,
-            armor = tonumber(character.armour or metadata.armor) or 0
-        },
+        metadata = qbMetadata,
         job = job,
         gang = {
             name = 'none', label = 'No Gang', isboss = false,
@@ -115,10 +116,12 @@ local function wrapPlayer(source)
     local himoPlayer = exports['himo_core']:GetPlayer(source)
     if not character or not himoPlayer then return nil end
 
-    local wrapper = {
-        PlayerData = buildPlayerData(source, character),
-        Functions = {}
-    }
+    local wrapper = { PlayerData = buildPlayerData(source, character), Functions = {} }
+
+    local function refresh()
+        local latest = exports['himo_core']:GetCharacter(source)
+        if latest then wrapper.PlayerData = buildPlayerData(source, latest) end
+    end
 
     wrapper.Functions.GetMoney = function(accountType)
         return himoPlayer.Functions.GetMoney(accountType)
@@ -126,22 +129,44 @@ local function wrapPlayer(source)
 
     wrapper.Functions.AddMoney = function(accountType, amount, reason)
         local success = himoPlayer.Functions.AddMoney(accountType, tonumber(amount) or 0, reason or 'qb-bridge')
-        if success then
-            wrapper.PlayerData.money[accountType] = himoPlayer.Functions.GetMoney(accountType) or 0
-        end
+        refresh()
         return success == true
     end
 
     wrapper.Functions.RemoveMoney = function(accountType, amount, reason)
         local success = himoPlayer.Functions.RemoveMoney(accountType, tonumber(amount) or 0, reason or 'qb-bridge')
-        if success then
-            wrapper.PlayerData.money[accountType] = himoPlayer.Functions.GetMoney(accountType) or 0
-        end
+        refresh()
         return success == true
     end
 
     wrapper.Functions.GetIdentifier = function()
-        return character.citizen_id
+        return himoPlayer.Functions.GetIdentifier()
+    end
+
+    wrapper.Functions.GetMetaData = function(key)
+        return himoPlayer.Functions.GetMetadata(key)
+    end
+
+    wrapper.Functions.SetMetaData = function(key, value)
+        local success = himoPlayer.Functions.SetMetadata(key, value)
+        refresh()
+        return success == true
+    end
+
+    wrapper.Functions.SetJob = function(jobName, grade)
+        local success = himoPlayer.Functions.SetJob(jobName, tonumber(grade) or 0)
+        refresh()
+        return success == true
+    end
+
+    wrapper.Functions.SetJobDuty = function(onDuty)
+        local success = himoPlayer.Functions.SetDuty(onDuty == true)
+        refresh()
+        return success == true
+    end
+
+    wrapper.Functions.Save = function()
+        return himoPlayer.Functions.Save()
     end
 
     return wrapper
@@ -158,6 +183,43 @@ QBCore.Functions.GetQBPlayers = function()
     end
     return players
 end
+
+QBCore.Functions.GetPlayers = function()
+    local players = {}
+    for _, source in ipairs(GetPlayers()) do players[#players + 1] = tonumber(source) end
+    return players
+end
+
+QBCore.Functions.GetPlayerByCitizenId = function(citizenId)
+    citizenId = tostring(citizenId or '')
+    for _, source in ipairs(GetPlayers()) do
+        local numericSource = tonumber(source)
+        local character = exports['himo_core']:GetCharacter(numericSource)
+        if character and character.citizen_id == citizenId then return wrapPlayer(numericSource) end
+    end
+    return nil
+end
+
+QBCore.Functions.HasPermission = function(source, permission)
+    permission = tostring(permission or ''):lower()
+    if permission == 'god' then permission = 'admin' end
+    return exports['himo_core']:HasPermission(source, permission)
+end
+
+QBCore.Functions.CreateCallback = function(name, cb)
+    if type(name) ~= 'string' or type(cb) ~= 'function' then return end
+    QBCore.ServerCallbacks[name] = cb
+end
+
+RegisterNetEvent('QBCore:Server:TriggerCallback', function(name, ...)
+    local src = source
+    local callback = QBCore.ServerCallbacks[name]
+    if not callback then return end
+
+    callback(src, function(...)
+        TriggerClientEvent('QBCore:Client:TriggerCallback', src, name, ...)
+    end, ...)
+end)
 
 local function qbExport(name, cb)
     AddEventHandler(('__cfx_export_qb-core_%s'):format(name), function(setCB)
