@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.1 - Illenium Appearance bridge
+
+- Added `himo_qb_bridge`, a deliberately limited QB compatibility layer that provides `qb-core` for supported third-party adapters without changing HimotheeCore's native API.
+- Added QB-shaped player identity, money, metadata, job and gang data for Illenium Appearance.
+- Added standard QB player-loaded/unloaded compatibility events mapped from HimotheeCore's world-ready lifecycle.
+- Added automatic installation of the supported Illenium Appearance release through the txAdmin recipe.
+- Added Illenium `playerskins`, outfit and management-outfit SQL installation.
+- New characters now open Illenium's full first-character customization flow after the spawn handoff succeeds.
+- `/himoappearance` now opens Illenium's full appearance editor when available.
+- Illenium appearance saves are mirrored into `himo_character_appearance` so Himothee multicharacter previews remain independently available.
+- Himothee preview/application now uses Illenium's full appearance payload when available, including genetics/hair/overlays/tattoos rather than only clothing components.
+- The existing Himothee clothing editor remains as a fallback if Illenium is unavailable.
+- No Himothee schema-version bump is required; Illenium's own additive tables are installed separately.
+
 ## 0.3.0 - Stage 1B Qbox-style lifecycle refactor
 
 - Rebuilt the character/login lifecycle after studying current Qbox core/spawn behaviour.
