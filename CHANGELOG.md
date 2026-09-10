@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 - system chat bootstrap fix
+
+- Enabled Cfx.re's built-in system chat with `set resources_useSystemChat true` before `ensure chat`.
+- Restored the default `T` text-chat input path needed for Stage 1 development commands.
+
 ## 0.1.3 - account join lifecycle fix
 
 - Fixed FiveM temporary `playerConnecting` source IDs not being carried into the final in-game `playerJoining` source.
