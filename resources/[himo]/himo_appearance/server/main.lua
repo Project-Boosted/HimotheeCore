@@ -44,19 +44,7 @@ local function fetchOwnedAppearance(source, characterId)
     return appearance
 end
 
-lib.callback.register('himo_appearance:server:getPreview', function(source, characterId)
-    characterId = tonumber(characterId)
-    if not characterId or characterId < 1 then return nil end
-    return fetchOwnedAppearance(source, characterId)
-end)
-
-lib.callback.register('himo_appearance:server:getCurrent', function(source)
-    local characterId = exports['himo_core']:GetCharacterId(source)
-    if not characterId then return nil end
-    return fetchOwnedAppearance(source, characterId)
-end)
-
-lib.callback.register('himo_appearance:server:save', function(source, appearance)
+local function persistAppearance(source, appearance)
     local characterId = exports['himo_core']:GetCharacterId(source)
     if not characterId then
         return false, 'No HimotheeCore character is loaded.'
@@ -88,4 +76,31 @@ lib.callback.register('himo_appearance:server:save', function(source, appearance
     ]], { characterId, model, encoded })
 
     return true
+end
+
+lib.callback.register('himo_appearance:server:getPreview', function(source, characterId)
+    characterId = tonumber(characterId)
+    if not characterId or characterId < 1 then return nil end
+    return fetchOwnedAppearance(source, characterId)
+end)
+
+lib.callback.register('himo_appearance:server:getCurrent', function(source)
+    local characterId = exports['himo_core']:GetCharacterId(source)
+    if not characterId then return nil end
+    return fetchOwnedAppearance(source, characterId)
+end)
+
+lib.callback.register('himo_appearance:server:save', function(source, appearance)
+    return persistAppearance(source, appearance)
+end)
+
+-- Illenium owns its own playerskins table through the QB adapter. Listen to the
+-- same save event and mirror the complete appearance JSON into Himothee's own
+-- character table so multicharacter previews never depend on a third-party DB.
+RegisterNetEvent('illenium-appearance:server:saveAppearance', function(appearance)
+    local source = source
+    local ok, reason = persistAppearance(source, appearance)
+    if not ok and GetConvarInt('himo:debug', 0) == 1 then
+        print(('[HimotheeAppearance] Illenium mirror skipped: %s'):format(reason or 'unknown reason'))
+    end
 end)
