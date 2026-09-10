@@ -42,10 +42,15 @@ local function setWaitingState(enabled)
     end
 end
 
+local function takeSpawnControl()
+    exports['spawnmanager']:setAutoSpawn(false)
+end
+
 local function openUi(payload)
     uiOpen = true
     spawning = false
 
+    takeSpawnControl()
     DoScreenFadeOut(0)
     setWaitingState(true)
     SetNuiFocus(true, true)
@@ -106,7 +111,7 @@ local function spawnCharacter(character)
     while not IsScreenFadedOut() do Wait(0) end
 
     closeUi()
-    exports['spawnmanager']:setAutoSpawn(false)
+    takeSpawnControl()
 
     local spawn = resolveSpawn(character)
     local model = modelForCharacter(character)
@@ -143,6 +148,7 @@ end)
 RegisterNetEvent('himo_characters:client:resume', function(character)
     currentCharacter = character
     closeUi()
+    takeSpawnControl()
     setWaitingState(false)
     if IsScreenFadedOut() then
         DoScreenFadeIn(500)
@@ -184,8 +190,20 @@ RegisterCommand('switchcharacter', function()
     TriggerServerEvent('himo_characters:server:logout')
 end, false)
 
+-- basic-gamemode enables spawnmanager autospawn during onClientMapStart. Stage
+-- 1B owns the player spawn, so reclaim control after that stock handler runs.
+AddEventHandler('onClientMapStart', function()
+    CreateThread(function()
+        Wait(0)
+        takeSpawnControl()
+        if uiOpen then
+            setWaitingState(true)
+        end
+    end)
+end)
+
 CreateThread(function()
-    exports['spawnmanager']:setAutoSpawn(false)
+    takeSpawnControl()
 
     while not NetworkIsSessionStarted() do
         Wait(100)
@@ -195,6 +213,7 @@ CreateThread(function()
     ShutdownLoadingScreenNui()
     Wait(750)
 
+    takeSpawnControl()
     TriggerServerEvent('himo_characters:server:bootstrap')
 end)
 
