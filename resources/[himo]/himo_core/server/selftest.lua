@@ -19,6 +19,20 @@ HimoCommands.register('himostatus', {}, function(source, args, raw, respond)
     ))
 end)
 
+HimoCommands.register('himoperms', {}, function(source, args, raw, respond)
+    if source == 0 then return end
+    local accountId = HimoAccounts[tonumber(source) or source]
+    local roles = HimoPermissions.getRoles(source)
+    local roleText = #roles > 0 and table.concat(roles, ',') or 'none'
+    respond(source, ('account=%s | roles=%s | staff=%s | admin=%s | dev=%s | owner=%s'):format(
+        accountId or 'none', roleText,
+        tostring(HimoPermissions.has(source, 'staff')),
+        tostring(HimoPermissions.has(source, 'admin')),
+        tostring(HimoPermissions.has(source, 'dev')),
+        tostring(HimoPermissions.has(source, 'owner'))
+    ))
+end)
+
 HimoCommands.register('himocoretest', { permission = 'staff' }, function(source, args, raw, respond)
     local target = tonumber(args[1]) or tonumber(source)
     if not target or target == 0 then
