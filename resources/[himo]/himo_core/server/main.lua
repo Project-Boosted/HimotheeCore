@@ -42,6 +42,33 @@ local function ensureAccountLoaded(playerSource)
     return accountId
 end
 
+local function capturePlayerPosition(playerSource)
+    playerSource = sourceKey(playerSource)
+    if not HimoPlayers[playerSource] then return false end
+
+    local ok, saved = pcall(function()
+        local ped = GetPlayerPed(playerSource)
+        if not ped or ped <= 0 then return false end
+
+        local coords = GetEntityCoords(ped)
+        if not coords then return false end
+
+        return HimoCharacters.savePosition(playerSource, {
+            x = coords.x,
+            y = coords.y,
+            z = coords.z,
+            heading = GetEntityHeading(ped)
+        })
+    end)
+
+    if not ok then
+        HimoLogger.error(('Position save failed for source %s: %s'):format(playerSource, saved))
+        return false
+    end
+
+    return saved == true
+end
+
 AddEventHandler('playerConnecting', function(playerName, setKickReason, deferrals)
     local connectingSource = sourceKey(source)
     deferrals.defer()
@@ -111,6 +138,8 @@ AddEventHandler('playerDropped', function(reason)
     local character = HimoPlayers[droppedSource]
 
     if character then
+        capturePlayerPosition(droppedSource)
+
         HimoDatabase.audit({
             accountId = HimoAccounts[droppedSource],
             characterId = character.id,
@@ -124,6 +153,10 @@ AddEventHandler('playerDropped', function(reason)
     end
 
     HimoAccounts[droppedSource] = nil
+end)
+
+RegisterNetEvent('himo_core:server:savePosition', function()
+    capturePlayerPosition(source)
 end)
 
 RegisterCommand('himoaccount', function(source)
@@ -217,38 +250,45 @@ exports('EnsureAccount', function(source)
 end)
 
 exports('GetCharacter', function(source)
-    return HimoPlayers[source]
+    return HimoPlayers[sourceKey(source)]
 end)
 
 exports('GetCharacterId', function(source)
-    local character = HimoPlayers[source]
+    local character = HimoPlayers[sourceKey(source)]
     return character and character.id or nil
 end)
 
 exports('GetCharacters', function(source)
-    local accountId = HimoAccounts[sourceKey(source)]
+    local key = sourceKey(source)
+    local accountId = HimoAccounts[key]
     if not accountId then return {} end
     return HimoCharacters.list(accountId)
 end)
 
 exports('CreateCharacter', function(source, data)
-    local accountId = HimoAccounts[sourceKey(source)] or ensureAccountLoaded(source)
+    local key = sourceKey(source)
+    local accountId = HimoAccounts[key] or ensureAccountLoaded(key)
     if not accountId then return nil, 'Account is not loaded.' end
-    return HimoCharacters.create(source, data)
+    return HimoCharacters.create(key, data)
 end)
 
 exports('LoadCharacter', function(source, characterId)
-    local accountId = HimoAccounts[sourceKey(source)] or ensureAccountLoaded(source)
+    local key = sourceKey(source)
+    local accountId = HimoAccounts[key] or ensureAccountLoaded(key)
     if not accountId then return nil, 'Account is not loaded.' end
-    return HimoCharacters.load(source, characterId)
+    return HimoCharacters.load(key, characterId)
 end)
 
 exports('UnloadCharacter', function(source)
-    return HimoCharacters.unload(source)
+    return HimoCharacters.unload(sourceKey(source))
 end)
 
 exports('SaveCharacterPosition', function(source, position)
-    return HimoCharacters.savePosition(source, position)
+    return HimoCharacters.savePosition(sourceKey(source), position)
+end)
+
+exports('SavePlayerPosition', function(source)
+    return capturePlayerPosition(source)
 end)
 
 exports('GetBalance', HimoMoney.getBalance)
@@ -267,4 +307,21 @@ CreateThread(function()
         HimoDatabase.schemaVersion,
         HimoConfig.MaxCharacters
     ))
+end)
+
+CreateThread(function()
+    while true do
+        Wait(HimoConfig.AutoSaveMs)
+
+        local saved = 0
+        for playerSource in pairs(HimoPlayers) do
+            if capturePlayerPosition(playerSource) then
+                saved = saved + 1
+            end
+        end
+
+        if HimoConfig.Debug and saved > 0 then
+            HimoLogger.debug(('Autosaved positions for %d loaded character(s).'):format(saved))
+        end
+    end
 end)
