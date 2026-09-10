@@ -39,33 +39,67 @@ function HimoPermissions.invalidate(accountId)
     if accountId then roleCache[tonumber(accountId)] = nil else roleCache = {} end
 end
 
-function HimoPermissions.bootstrapOwner(accountId)
-    accountId = tonumber(accountId)
-    if not accountId then return false end
-    if GetConvarInt('himo:autoBootstrapOwner', 1) ~= 1 then return false end
+-- Runtime bootstrap is intentionally owned by the framework, not the SQL migration.
+-- This works for both a fresh server and an upgraded development database whose
+-- txAdmin master account is not linked to a FiveM provider identifier.
+function HimoPermissions.ensureOwner()
+    if GetConvarInt('himo:autoBootstrapOwner', 1) ~= 1 then
+        return false, nil, 'Owner bootstrap is disabled.'
+    end
 
     local existingOwner = MySQL.scalar.await([[
-        SELECT `account_id` FROM `himo_account_roles`
-        WHERE `role_name` = 'owner' LIMIT 1
+        SELECT `account_id`
+        FROM `himo_account_roles`
+        WHERE `role_name` = 'owner'
+        ORDER BY `account_id` ASC
+        LIMIT 1
     ]])
-    if existingOwner then return false end
+    if existingOwner then
+        return true, tonumber(existingOwner), 'existing'
+    end
 
-    local stats = MySQL.single.await([[
-        SELECT COUNT(*) AS `count`, MIN(`id`) AS `first_id`
+    local firstAccountId = MySQL.scalar.await([[
+        SELECT `id`
         FROM `himo_accounts`
+        ORDER BY `id` ASC
+        LIMIT 1
     ]])
-    local count = stats and tonumber(stats.count) or 0
-    local firstId = stats and tonumber(stats.first_id) or nil
-    if count ~= 1 or firstId ~= accountId then return false end
+    firstAccountId = tonumber(firstAccountId)
+    if not firstAccountId then
+        return false, nil, 'No Himothee account exists yet.'
+    end
 
-    MySQL.insert.await([[
+    local inserted = MySQL.insert.await([[
         INSERT IGNORE INTO `himo_account_roles`
             (`account_id`, `role_name`, `granted_by_account_id`)
         VALUES (?, 'owner', NULL)
-    ]], { accountId })
-    HimoPermissions.invalidate(accountId)
-    HimoLogger.info(('Bootstrapped Himothee owner role for account %d.'):format(accountId))
-    return true
+    ]], { firstAccountId })
+
+    -- INSERT IGNORE may return 0 if another thread won the race; resolve again.
+    local ownerAccountId = MySQL.scalar.await([[
+        SELECT `account_id`
+        FROM `himo_account_roles`
+        WHERE `role_name` = 'owner'
+        ORDER BY `account_id` ASC
+        LIMIT 1
+    ]])
+    ownerAccountId = tonumber(ownerAccountId)
+    if not ownerAccountId then
+        return false, nil, 'Could not create the initial owner role.'
+    end
+
+    HimoPermissions.invalidate(ownerAccountId)
+    if inserted and tonumber(inserted) and tonumber(inserted) > 0 then
+        HimoLogger.info(('Bootstrapped Himothee owner role for account %d.'):format(ownerAccountId))
+    end
+    return true, ownerAccountId, 'bootstrapped'
+end
+
+function HimoPermissions.bootstrapOwner(accountId)
+    accountId = tonumber(accountId)
+    if not accountId then return false end
+    local ok, ownerAccountId = HimoPermissions.ensureOwner()
+    return ok and ownerAccountId == accountId
 end
 
 function HimoPermissions.hasAccount(accountId, permission)
