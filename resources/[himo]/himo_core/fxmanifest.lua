@@ -31,6 +31,7 @@ server_scripts {
     'server/player.lua',
     'server/lifecycle.lua',
     'server/admin.lua',
+    'server/selftest.lua',
     'server/main.lua'
 }
 
