@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_appearance'
 author 'HimotheeGaming'
 description 'HimotheeCore appearance persistence with Illenium bridge'
-version '0.3.2'
+version '0.4.0'
 
 lua54 'yes'
 
