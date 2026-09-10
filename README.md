@@ -1,138 +1,148 @@
-# HimotheeCore v0.3.2 — Stage 1B Lifecycle + Illenium
+# HimotheeCore v0.4.0 — Stage 1C Core Framework Services
 
-HimotheeCore is a progression-focused FiveM framework being built as a modular alternative to monolithic RP frameworks.
+HimotheeCore is a modular, progression-focused FiveM framework. v0.4.0 keeps the real-server-tested multicharacter/spawn/Illenium lifecycle from v0.3.2 and adds the framework services that future jobs, activities, skills, businesses and gameplay resources will use.
 
-## Current lifecycle design
+## Current architecture
 
-Real-server testing showed that stock autospawn plus a fullscreen character NUI was too fragile. The current lifecycle follows the proven separation used by Qbox while keeping HimotheeCore's database, Player Object and APIs independent.
+```text
+FiveM connection
+  -> account + duplicate-session guard
+  -> multicharacter preview
+  -> character load/create
+  -> spawn selector
+  -> appearance / Illenium
+  -> world-ready lifecycle
+  -> Himothee Player Object
+  -> gameplay resources
+```
 
-Key rules:
+`basic-gamemode` remains stopped so HimotheeCore is the only owner of player login/spawning.
 
-- `basic-gamemode` is stopped; HimotheeCore owns player login/spawning.
-- `ox_lib` context/input UI handles character and spawn selection.
-- character selection runs in a solo tutorial/preview session with a scripted camera.
-- loading character data and entering the game world are separate lifecycle states.
-- `himo_spawn` owns spawn choice.
-- `himo_appearance` owns Himothee appearance persistence.
-- Illenium Appearance supplies the full visual character editor.
-- tutorial mode ends before normal gameplay is released.
+## Stage 1C additions
+
+v0.4.0 adds:
+
+- namespaced framework/player statebags and global readiness state
+- persistent metadata service with controlled replication
+- expanded Player Object API
+- native multi-job, grade, primary-job and duty APIs
+- native multi-group/gang membership APIs
+- namespaced server/client callback wrappers
+- ACE permission service and framework command registry
+- duplicate-account session protection
+- auditable `himo_player_sessions`
+- txAdmin shutdown save-all handling
+- stronger QB compatibility for money, metadata, jobs, duty, gangs/groups and callbacks
+- `/himocoretest` runtime acceptance command
+- schema version 3
 
 ## Resources
 
 ```text
 resources/[himo]/
-  himo_core        account, character data, Player Object, lifecycle authority
-  himo_qb_bridge   limited QB compatibility surface for supported third-party resources
-  himo_characters  multicharacter selection/creation and preview session
-  himo_spawn       spawn-location selection
-  himo_appearance  Himothee appearance persistence + Illenium integration
+  himo_core        framework authority and core services
+  himo_qb_bridge   deliberately limited QB compatibility layer
+  himo_characters  multicharacter selection and preview lifecycle
+  himo_spawn       spawn-location selector
+  himo_appearance  Himothee persistence + Illenium integration
 ```
 
 ## txAdmin recipe
 
-Use this exact raw recipe URL:
+Use the raw recipe URL:
 
     https://raw.githubusercontent.com/Project-Boosted/HimotheeCore/main/recipe.yaml
 
-A clean deployment installs the current CFX resource tree, `ox_lib`, `oxmysql`, the supported Illenium Appearance release, HimotheeCore resources, and all required SQL automatically.
+A clean deployment installs the current CFX resources, `ox_lib`, `oxmysql`, the supported Illenium Appearance release, Himothee resources and all required SQL automatically.
 
 ## Database
 
-Fresh/update deployments run:
+The Himothee migration chain is:
 
-1. `database/001_schema.sql`
-2. `database/002_seed.sql`
-3. `database/003_stage1b_lifecycle.sql`
-4. Illenium's additive appearance/outfit SQL files
+1. `001_schema.sql` — foundation
+2. `002_seed.sql` — default core data
+3. `003_stage1b_lifecycle.sql` — appearance/lifecycle schema
+4. `004_stage1c_core_services.sql` — sessions + generic groups
 
-Schema version 2 adds `himo_character_appearance`, keyed directly to the Himothee character ID. Existing accounts, characters, balances, jobs and saved positions are retained.
+v0.4.0 requires **schema version 3**. Existing account, character, money, position and appearance data is preserved.
 
-## Login flow
+## Player Object example
 
-```text
-FiveM connection
-  -> account resolution
-  -> solo tutorial/preview session
-  -> ox_lib character selector
-  -> server-authoritative character load/create
-  -> himo_spawn location selector
-  -> apply saved/default appearance
-  -> final spawn
-  -> himo_core finishLogin
-  -> NetworkEndTutorialSession
-  -> world-ready Player Object
-  -> gameplay
+```lua
+local Player = exports.himo_core:GetPlayer(source)
+if not Player then return end
+
+Player.Functions.AddMoney('bank', 250, 'delivery payment')
+Player.Functions.SetMetadata('stress', 10)
+Player.Functions.SetJob('trucker', 0)
+Player.Functions.SetDuty(true)
+
+local job = Player.Functions.GetPrimaryJob()
+local groups = Player.Functions.GetGroups()
 ```
 
-## v0.3.2 first-character appearance flow
+See `docs/API.md` for the current API contract.
 
-New-character appearance no longer depends on Illenium detecting a QB framework compatibility event. After world entry, HimotheeCore checks whether the character has a saved appearance. If none exists it calls Illenium's generic `startPlayerCustomization` export directly.
+## State model
 
-```text
-Create identity
-  -> choose spawn
-  -> world ready
-  -> no saved appearance detected
-  -> Illenium full creator opens automatically
-  -> face / genetics / hair / overlays / clothing / props / tattoos
-  -> save
-  -> himo_character_appearance
-  -> Illenium playerskins mirror
-```
-
-Once an appearance exists, future spawns skip the automatic creator and simply load the saved appearance. This also gives older test characters created before v0.3.2 a one-time automatic appearance setup.
-
-## Stage 1A foundation retained
-
-- account + identifier lifecycle
-- multi-character persistence
-- cash/bank balances and transaction ledger
-- jobs + grades + multi-job groundwork
-- organisations + granular-role groundwork
-- persistent vehicles
-- audit logging
-- migration tracking
-- periodic/disconnect position saving
-- Stage 1B Player Object
-
-## Development commands
-
-- `/himoaccount`
-- `/himocreate Firstname Lastname YYYY-MM-DD gender`
-- `/himoload <characterId>`
-- `/himowhoami`
-- `/himoplayer`
-- `/switchcharacter`
-- `/himoappearance`
-- `/himofirstappearance` — force the direct Illenium creator while testing
-
-The direct create/load commands remain temporary development tools; normal players should use the character selector.
-
-## Resource start order
-
-The supplied `server.cfg` enforces:
+Framework global state:
 
 ```text
-spawnmanager
-baseevents
-ox_lib
-oxmysql
-himo_core
-himo_qb_bridge
-illenium-appearance
-himo_appearance
-himo_spawn
-himo_characters
+himothee_core:version
+himothee_core:stage
+himothee_core:build
+himothee_core:ready
 ```
 
-`basic-gamemode` is explicitly stopped.
+Replicated player state includes:
 
-## Status
+```text
+himo:characterId
+himo:citizenId
+himo:characterLoaded
+himo:playerLoaded
+himo:job
+himo:onDuty
+himo:group
+himo:metadata
+```
 
-v0.3.2 is a Stage 1B development acceptance build. Character preview, existing/new character login, spawn selection, world visibility, reconnect position persistence, switching and appearance persistence are being tested on a real txAdmin server before Stage 1B is frozen.
+Only explicitly safe metadata keys are replicated; server-only metadata stays authoritative on the server.
 
-See `docs/STAGE1B_V030_TEST.md` for the real-server acceptance sequence and `docs/API.md` for current framework APIs.
+## Development / acceptance commands
 
-## GitHub automation
+```text
+/himoaccount
+/himowhoami
+/himoplayer
+/himostatus
+/himoduty [on|off]
+/switchcharacter
+/himoappearance
+/himofirstappearance
+```
 
-Every push/PR to `main` validates Lua syntax, recipe YAML, txAdmin dependency wiring, stopped stock autospawn, absence of the old fullscreen character NUI, resource ordering, version consistency, and SQL/schema v2 against MariaDB. Version tags build a release ZIP and SHA-256 automatically.
+Staff/admin acceptance commands:
+
+```text
+/himostage
+/himocoretest [serverId]
+/himodebugplayer [serverId]
+/himosetjob <serverId> <job> <grade>
+/himoaddjob <serverId> <job> <grade>
+/himosetgroup <serverId> <group> <grade>
+/himoaddgroup <serverId> <group> <grade>
+/himometadata <serverId> <key> [value]
+```
+
+## QB compatibility
+
+`himo_qb_bridge` provides `qb-core` for specifically mapped third-party APIs. v0.4.0 covers common PlayerData, money, metadata, job/duty, gang/group, player lookup, permissions and QB callback transport.
+
+It is intentionally not advertised as universal QB compatibility. An API is only added to the bridge after HimotheeCore has a native equivalent and it has been tested.
+
+## Testing
+
+Before Stage 1C is frozen, v0.4.0 must pass the real txAdmin acceptance plan in `docs/STAGE1C_V040_TEST.md`, including the existing character/spawn/Illenium regression tests, metadata persistence, duty state, session ownership and txAdmin restart saving.
+
+GitHub Actions validates Lua syntax, recipe YAML, dependency/resource order, Stage 1C service presence, version consistency and schema version 3 against MariaDB on every push/PR.
