@@ -2,41 +2,54 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.1.0
+version: 0.1.1
 author: HimotheeGaming
 description: Stage 1 foundation for the HimotheeCore progression-focused FiveM framework.
 
 tasks:
-  # Base FiveM resources
+  # Download the current Cfx.re base resources once, then copy the exact
+  # resources required for a clean first join/spawn.
   - action: download_github
     src: https://github.com/citizenfx/cfx-server-data
     ref: master
-    subpath: resources/[managers]/mapmanager
+    subpath: resources
+    dest: ./tmp/cfx
+
+  - action: ensure_dir
+    path: ./resources/[cfx]
+
+  - action: ensure_dir
+    path: ./resources/[maps]
+
+  - action: move_path
+    src: ./tmp/cfx/[managers]/mapmanager
     dest: ./resources/[cfx]/mapmanager
 
-  - action: download_github
-    src: https://github.com/citizenfx/cfx-server-data
-    ref: master
-    subpath: resources/[managers]/spawnmanager
+  - action: move_path
+    src: ./tmp/cfx/[managers]/spawnmanager
     dest: ./resources/[cfx]/spawnmanager
 
-  - action: download_github
-    src: https://github.com/citizenfx/cfx-server-data
-    ref: master
-    subpath: resources/[managers]/sessionmanager
+  - action: move_path
+    src: ./tmp/cfx/[system]/sessionmanager
     dest: ./resources/[cfx]/sessionmanager
 
-  - action: download_github
-    src: https://github.com/citizenfx/cfx-server-data
-    ref: master
-    subpath: resources/[system]/chat
+  - action: move_path
+    src: ./tmp/cfx/[system]/chat
     dest: ./resources/[cfx]/chat
 
-  - action: download_github
-    src: https://github.com/citizenfx/cfx-server-data
-    ref: master
-    subpath: resources/[system]/hardcap
+  - action: move_path
+    src: ./tmp/cfx/[system]/hardcap
     dest: ./resources/[cfx]/hardcap
+
+  # Stage 1 uses the stock freeroam gametype only as a safe bootstrap while
+  # HimotheeCore's proper character/spawn flow is still under development.
+  - action: move_path
+    src: ./tmp/cfx/[gamemodes]/basic-gamemode
+    dest: ./resources/[cfx]/basic-gamemode
+
+  - action: move_path
+    src: ./tmp/cfx/[gamemodes]/[maps]/fivem-map-hipster
+    dest: ./resources/[maps]/fivem-map-hipster
 
   # Database dependency - release archive includes the built resource.
   - action: download_file
