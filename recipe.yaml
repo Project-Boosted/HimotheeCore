@@ -2,21 +2,19 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.3.0
+version: 0.3.1
 author: HimotheeGaming
-description: Qbox-style Stage 1B lifecycle refactor for the HimotheeCore progression-focused FiveM framework.
+description: Qbox-style HimotheeCore lifecycle with Illenium Appearance character-creation bridge.
 
 tasks:
-  # Current Cfx.re default resources. Keep the whole tree intact so upstream
-  # folder changes do not break deployment.
+  # Current Cfx.re default resources.
   - action: download_github
     src: https://github.com/citizenfx/cfx-server-data
     ref: master
     subpath: resources
     dest: ./resources/[cfx-default]
 
-  # ox_lib provides the non-blocking context/input UI used by multicharacter,
-  # spawn selection and the Stage 1B clothing editor.
+  # ox_lib provides multicharacter/spawn UI and is required by Illenium.
   - action: download_file
     url: https://github.com/overextended/ox_lib/releases/latest/download/ox_lib.zip
     path: ./tmp/ox_lib.zip
@@ -32,6 +30,15 @@ tasks:
 
   - action: unzip
     src: ./tmp/oxmysql.zip
+    dest: ./resources/[dependencies]
+
+  # Use the supported Illenium release build, not its development main branch.
+  - action: download_file
+    url: https://github.com/iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip
+    path: ./tmp/illenium-appearance.zip
+
+  - action: unzip
+    src: ./tmp/illenium-appearance.zip
     dest: ./resources/[dependencies]
 
   # HimotheeCore source.
@@ -52,9 +59,9 @@ tasks:
     src: ./tmp/himotheecore/permissions.cfg
     dest: ./permissions.cfg
 
-  # txAdmin supplies the database credentials/context here.
   - action: connect_database
 
+  # Himothee schema.
   - action: query_database
     file: ./tmp/himotheecore/database/001_schema.sql
 
@@ -64,7 +71,19 @@ tasks:
   - action: query_database
     file: ./tmp/himotheecore/database/003_stage1b_lifecycle.sql
 
-  # Replace txAdmin template variables in server.cfg.
+  # Illenium persistence tables. These are additive and use IF NOT EXISTS.
+  - action: query_database
+    file: ./resources/[dependencies]/illenium-appearance/sql/playerskins.sql
+
+  - action: query_database
+    file: ./resources/[dependencies]/illenium-appearance/sql/player_outfits.sql
+
+  - action: query_database
+    file: ./resources/[dependencies]/illenium-appearance/sql/player_outfit_codes.sql
+
+  - action: query_database
+    file: ./resources/[dependencies]/illenium-appearance/sql/management_outfits.sql
+
   - action: replace_string
     mode: all_vars
     file:
