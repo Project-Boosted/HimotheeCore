@@ -63,17 +63,14 @@ tasks:
     search: "vehicleTable = 'player_vehicles'"
     replace: "vehicleTable = 'himo_vehicles'"
 
-  # Jim Mining / Jim Recycle expect QB-style material and tool items. Extend the
-  # pinned ox_inventory v2.47.9 catalogue without replacing its standard items.
+  # Jim Mining / Jim Recycle expect QB-style material and tool items. txAdmin's
+  # literal replace mode uses RegExp internally, so the search expression is
+  # deliberately regex-escaped against the pinned ox_inventory v2.47.9 tail.
   - action: replace_string
     mode: literal
     file: ./resources/[dependencies]/ox_inventory/data/items.lua
-    search: |
-      	['scrapmetal'] = {
-      		label = 'Scrap Metal',
-      		weight = 80,
-      	},
-      }
+    search: >-
+      \t\['scrapmetal'\] = \{\n\t\tlabel = 'Scrap Metal',\n\t\tweight = 80,\n\t\},\n\}
     replace: |
       	['scrapmetal'] = {
       		label = 'Scrap Metal',
