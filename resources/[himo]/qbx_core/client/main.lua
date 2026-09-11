@@ -1,7 +1,15 @@
-local QB = exports['qb-core']:GetCoreObject()
-
 local function playerData()
-    return QB.Functions.GetPlayerData() or {}
+    local ok, data = pcall(function()
+        return exports['qb-core']:GetPlayerData()
+    end)
+    return ok and type(data) == 'table' and data or {}
+end
+
+local function shared(namespace)
+    local ok, data = pcall(function()
+        return exports['qb-core']:GetShared(namespace)
+    end)
+    return ok and type(data) == 'table' and data or {}
 end
 
 local function groups(primaryOnly)
@@ -44,10 +52,6 @@ end
 local function publishGroups(groupName, groupGrade)
     local snapshot = groups(false)
 
-    -- ox_inventory's QBX bridge expects PlayerData.groups to exist before it
-    -- handles qbx_core:client:onGroupUpdate. Real qbx_core primes this state via
-    -- qbx_core:client:setGroups; mirror that contract before every incremental
-    -- update so early character-load job events cannot index nil.
     TriggerEvent('qbx_core:client:setGroups', snapshot)
 
     if groupName then
@@ -62,19 +66,19 @@ exports('GetGroups', function()
 end)
 exports('HasGroup', function(filter) return matches(filter, false) end)
 exports('HasPrimaryGroup', function(filter) return matches(filter, true) end)
-exports('GetJobs', function() return QB.Shared.Jobs or {} end)
-exports('GetGangs', function() return QB.Shared.Gangs or {} end)
-exports('GetJob', function(name) return QB.Shared.Jobs and QB.Shared.Jobs[name] or nil end)
-exports('GetGang', function(name) return QB.Shared.Gangs and QB.Shared.Gangs[name] or nil end)
+exports('GetJobs', function() return shared('Jobs') end)
+exports('GetGangs', function() return shared('Gangs') end)
+exports('GetJob', function(name) return shared('Jobs')[name] end)
+exports('GetGang', function(name) return shared('Gangs')[name] end)
 exports('GetVehiclesByName', function(vehicle)
-    local vehicles = QB.Shared.Vehicles or {}
+    local vehicles = shared('Vehicles')
     return vehicle and vehicles[vehicle] or vehicles
 end)
 exports('GetWeapons', function(weapon)
-    local weapons = QB.Shared.Weapons or {}
+    local weapons = shared('Weapons')
     return weapon and weapons[weapon] or weapons
 end)
-exports('GetLocations', function() return QB.Shared.Locations or {} end)
+exports('GetLocations', function() return shared('Locations') end)
 exports('Notify', function(text, notifyType, duration, subTitle, notifyPosition, notifyStyle, notifyIcon, notifyIconColor)
     local description = type(text) == 'table' and (text.text or text.caption) or tostring(text)
     lib.notify({
