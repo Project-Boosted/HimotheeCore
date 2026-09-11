@@ -29,6 +29,37 @@ function HimoIdentifiers.ensureAccount(source)
     local identifiers = HimoIdentifiers.collect(source)
     if #identifiers == 0 then return nil, 'No usable FiveM identifier was found.' end
 
+    local identifiersByProvider = {}
+    for _, item in ipairs(identifiers) do
+        identifiersByProvider[item.provider] = identifiersByProvider[item.provider] or item.identifier
+    end
+
+    -- ps-adminmenu writes standard QBCore bans. When that compatibility table is
+    -- available, enforce active records during HimotheeCore's connection gate too.
+    -- pcall keeps upgrades safe during the very first startup before the QB bridge
+    -- has provisioned its vendor compatibility schema.
+    local banQueryOk, activeBan = pcall(MySQL.single.await, [[
+        SELECT `reason`, `expire`, `bannedby`
+        FROM `bans`
+        WHERE (
+            (`license` IS NOT NULL AND `license` = ?)
+            OR (`discord` IS NOT NULL AND `discord` = ?)
+            OR (`ip` IS NOT NULL AND `ip` = ?)
+        )
+          AND (`expire` IS NULL OR `expire` >= 2147483647 OR `expire` > UNIX_TIMESTAMP())
+        ORDER BY `id` DESC
+        LIMIT 1
+    ]], {
+        identifiersByProvider.license,
+        identifiersByProvider.discord,
+        identifiersByProvider.ip,
+    })
+
+    if banQueryOk and activeBan then
+        local reason = tostring(activeBan.reason or 'No reason supplied.')
+        return nil, ('You are banned from this server. Reason: %s'):format(reason)
+    end
+
     local resolvedAccountId = nil
     for _, item in ipairs(identifiers) do
         local existing = MySQL.scalar.await([[
