@@ -4,7 +4,7 @@ game 'gta5'
 name 'progressbar'
 author 'HimotheeGaming'
 description 'QBCore progressbar compatibility facade backed by ox_lib'
-version '0.5.4'
+version '0.5.5'
 
 lua54 'yes'
 shared_script '@ox_lib/init.lua'
