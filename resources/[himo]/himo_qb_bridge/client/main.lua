@@ -3,6 +3,7 @@ local clientCallbacks = {}
 
 local QBCore = {
     Functions = {},
+    PlayerData = {},
     Shared = {
         Items = {}, Vehicles = {}, Weapons = {}, Locations = {}, StarterItems = {},
         Jobs = {
@@ -130,7 +131,12 @@ local function buildPlayerData()
     return base
 end
 
-local function refreshPlayerData() cachedPlayerData = buildPlayerData() return cachedPlayerData end
+local function refreshPlayerData()
+    cachedPlayerData = buildPlayerData()
+    QBCore.PlayerData = cachedPlayerData
+    return cachedPlayerData
+end
+
 QBCore.Functions.GetPlayerData = function(cb)
     local data = refreshPlayerData()
     if type(cb) == 'function' then cb(data) end
@@ -142,9 +148,10 @@ QBCore.Functions.Notify = function(text, notifyType, duration)
     lib.notify({ description = description, type = notifyType or 'inform', duration = duration })
 end
 QBCore.Functions.TriggerCallback = function(name, cb, ...)
-    if type(name) ~= 'string' or type(cb) ~= 'function' then return end
+    if type(name) ~= 'string' or type(cb) ~= 'function' then return false end
     clientCallbacks[name] = cb
     TriggerServerEvent('QBCore:Server:TriggerCallback', name, ...)
+    return true
 end
 RegisterNetEvent('QBCore:Client:TriggerCallback', function(name, ...)
     local cb = clientCallbacks[name]
@@ -154,6 +161,9 @@ RegisterNetEvent('QBCore:Client:TriggerCallback', function(name, ...)
 end)
 
 exports('GetCoreObject', function() return QBCore end)
+exports('GetPlayerData', function() return QBCore.Functions.GetPlayerData() end)
+exports('Notify', function(...) return QBCore.Functions.Notify(...) end)
+exports('TriggerCallback', function(...) return QBCore.Functions.TriggerCallback(...) end)
 
 local function pushPlayerData()
     local data = refreshPlayerData()
@@ -191,5 +201,6 @@ RegisterNetEvent('himo_core:client:playerLoaded', function()
 end)
 RegisterNetEvent('himo_core:client:characterUnloaded', function()
     cachedPlayerData = nil
+    QBCore.PlayerData = {}
     TriggerEvent('QBCore:Client:OnPlayerUnload')
 end)
