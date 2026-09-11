@@ -4,7 +4,7 @@ game 'gta5'
 name 'qb-target'
 author 'HimotheeGaming'
 description 'qb-target compatibility facade backed by ox_target'
-version '0.5.8'
+version '0.5.9'
 
 lua54 'yes'
 shared_script '@ox_lib/init.lua'
