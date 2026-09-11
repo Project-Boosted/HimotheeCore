@@ -53,9 +53,9 @@ CreateThread(function()
         if ok and type(oxItems) == 'table' then
             core.Shared.Items = mapOxItems(oxItems)
             pushShared(-1)
-            print(('[HimotheeCompat] Loaded %d ox_inventory item definitions into QBCore.Shared.Items.'):format(
-                (function() local n = 0 for _ in pairs(core.Shared.Items) do n += 1 end return n end)()
-            ))
+            local count = 0
+            for _ in pairs(core.Shared.Items) do count = count + 1 end
+            print(('[HimotheeCompat] Loaded %d ox_inventory item definitions into QBCore.Shared.Items.'):format(count))
         else
             print('[HimotheeCompat] ox_inventory started but its item catalog could not be read.')
         end
