@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.5.1 - Stage 1D Compatibility Validation & Drag-and-Drop Hardening
+
+- Expanded `/himocompat` from three framework checks into a server+client runtime acceptance test.
+- Added live checks for `qbx_vehicles`, `ox_inventory`, `ox_target`, `qb-inventory`, `qb-target`, `qb-menu`, `qb-input` and `progressbar`.
+- Added a real QBCore client -> server -> client callback round-trip test.
+- Added non-mutating `Health()` exports to the exact-name QB helper facades.
+- Added client compatibility probe support inside `himo_core`.
+- Hardened CI around schema 5, the ox_inventory native-table mapping, exact-name helper resources, resource start order and version consistency.
+- Kept the existing character/spawn/Illenium lifecycle unchanged.
+- No new SQL migration beyond Stage 1D schema 5.
+
+## 0.5.0 - Stage 1D Compatibility Layer
+
+- Added exact-name `qb-core` and `qbx_core` compatibility facades backed by HimotheeCore.
+- Added `qbx_vehicles` backed by native `himo_vehicles` records.
+- Expanded PlayerData/money/metadata/job/group/usable-item compatibility for common QB/QBX resources.
+- Added pinned `ox_inventory` v2.47.9 and `ox_target` v1.18.1 deployment.
+- Added schema 5 persistence fields for player inventory plus vehicle glovebox/trunk storage.
+- Mapped ox_inventory's Qbox database adapter onto `himo_characters` and `himo_vehicles` rather than creating fake Qbox tables.
+- Added exact-name `qb-menu`, `qb-input`, `qb-target`, `qb-inventory` and `progressbar` facades backed by ox resources.
+- Added audited/pinned Jim Bridge deployment and configured it to use QBX + ox inventory/target compatibility paths.
+- Added shared item/job/gang/vehicle catalog synchronisation for QB-style resources.
+
+## 0.4.2 - Native Account Roles
+
+- Added persistent Himothee account roles (`owner`, `admin`, `staff`, `dev`) alongside ACE/txAdmin permissions.
+- Added runtime first-owner bootstrap when no owner exists and `himo:autoBootstrapOwner 1` is enabled.
+- Added `/himoperms`, role grant/revoke tooling and schema version 4.
+
+## 0.4.1 - txAdmin ACE Principal Integration
+
+- Added txAdmin `{{addPrincipalsMaster}}` permission injection to generated server configuration.
+- Kept Himothee staff/admin commands protected by ACE while diagnosing unlinked txAdmin identities.
+
 ## 0.4.0 - Stage 1C Core Framework Services
 
 - Preserved the proven v0.3.2 multicharacter, spawn and automatic Illenium Appearance lifecycle without rewriting it.
