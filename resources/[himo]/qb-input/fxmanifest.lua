@@ -4,7 +4,7 @@ game 'gta5'
 name 'qb-input'
 author 'HimotheeGaming'
 description 'qb-input compatibility facade backed by ox_lib input dialogs'
-version '0.5.8'
+version '0.5.9'
 
 lua54 'yes'
 shared_script '@ox_lib/init.lua'
