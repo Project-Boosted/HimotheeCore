@@ -10,6 +10,15 @@ local function isFunction(value)
 end
 
 sharedMirror.IsFunction = isFunction
+sharedMirror.Trim = function(value)
+    return tostring(value or ''):match('^%s*(.-)%s*$') or ''
+end
+sharedMirror.Round = function(value, decimals)
+    value = tonumber(value) or 0
+    decimals = tonumber(decimals) or 0
+    local power = 10 ^ decimals
+    return math.floor(value * power + 0.5) / power
+end
 
 local QBCore = {
     Functions = {},
@@ -24,6 +33,7 @@ local function refreshPlayerData()
         return exports.himo_qb_bridge:GetPlayerData()
     end)
     if ok and type(data) == 'table' then
+        data.name = data.name or GetPlayerName(PlayerId()) or ''
         QBCore.PlayerData = data
     end
     return QBCore.PlayerData
@@ -84,6 +94,12 @@ end
 QBCore.Functions.GetPlate = function(...)
     return exports.himo_qb_bridge:GetPlate(...)
 end
+QBCore.Functions.GetVehicleProperties = function(...)
+    return exports.himo_qb_bridge:GetVehicleProperties(...)
+end
+QBCore.Functions.SetVehicleProperties = function(...)
+    return exports.himo_qb_bridge:SetVehicleProperties(...)
+end
 QBCore.Functions.SpawnVehicle = function(...)
     return exports.himo_qb_bridge:SpawnVehicle(...)
 end
@@ -101,7 +117,10 @@ RegisterNetEvent('QBCore:Client:TriggerCallback', function(name, ...)
 end)
 
 RegisterNetEvent('QBCore:Player:SetPlayerData', function(data)
-    if type(data) == 'table' then QBCore.PlayerData = data end
+    if type(data) == 'table' then
+        data.name = data.name or GetPlayerName(PlayerId()) or ''
+        QBCore.PlayerData = data
+    end
 end)
 
 RegisterNetEvent('QBCore:Client:OnPlayerUnload', function()
