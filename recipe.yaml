@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.5.0
+version: 0.5.1
 author: HimotheeGaming
-description: Stage 1D compatibility layer with QBCore/Qbox facades, Jim Bridge, ox_inventory, ox_target, and stable Himothee lifecycle.
+description: Stage 1D compatibility validation with QBCore/Qbox facades, Jim Bridge, ox_inventory, ox_target, and drag-and-drop helper adapters.
 
 tasks:
   - action: download_github
@@ -29,7 +29,6 @@ tasks:
     src: ./tmp/oxmysql.zip
     dest: ./resources/[dependencies]
 
-  # Audited/pinned interaction and inventory releases for reproducible compatibility.
   - action: download_file
     url: https://github.com/overextended/ox_target/releases/download/v1.18.1/ox_target.zip
     path: ./tmp/ox_target.zip
@@ -46,9 +45,6 @@ tasks:
     src: ./tmp/ox_inventory.zip
     dest: ./resources/[dependencies]
 
-  # ox_inventory's Qbox bridge normally points at Qbox's `players` and
-  # `player_vehicles` tables. HimotheeCore keeps its own native schema, so map
-  # only those persistence table names/columns to the equivalent native tables.
   - action: replace_string
     mode: literal
     file: ./resources/[dependencies]/ox_inventory/modules/mysql/server.lua
@@ -67,7 +63,6 @@ tasks:
     search: "vehicleTable = 'player_vehicles'"
     replace: "vehicleTable = 'himo_vehicles'"
 
-  # Jimathy's bridge is pinned to the audited compatibility revision.
   - action: download_github
     src: https://github.com/jimathy/jim_bridge
     ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60
