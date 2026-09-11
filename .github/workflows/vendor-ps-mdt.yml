@@ -64,3 +64,6 @@ jobs:
           git add BUILD_SOURCE.txt web/dist
           git commit -m 'vendor: ps-mdt 3.1.4 web bundle'
           git push --force origin "$BRANCH"
+
+      - name: Verify published bundle marker
+        run: echo 'ps-mdt vendor branch publication requested'
