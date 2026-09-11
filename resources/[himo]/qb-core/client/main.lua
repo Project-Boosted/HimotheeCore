@@ -2,6 +2,15 @@ local sharedMirror = {
     Items = {}, Vehicles = {}, Weapons = {}, Locations = {}, StarterItems = {}, Jobs = {}, Gangs = {}
 }
 
+local function isFunction(value)
+    if type(value) == 'table' then
+        return value.__cfx_functionReference ~= nil and type(value.__cfx_functionReference) == 'string'
+    end
+    return type(value) == 'function'
+end
+
+sharedMirror.IsFunction = isFunction
+
 local QBCore = {
     Functions = {},
     PlayerData = {},
@@ -20,14 +29,15 @@ local function refreshPlayerData()
     return QBCore.PlayerData
 end
 
--- Match the current QBCore callback contract. The callback argument is optional;
--- without one the function awaits and returns the server response.
+-- Match the current QBCore callback contract. Callback funcrefs crossing a
+-- resource boundary can arrive as CFX function-reference tables, so use the
+-- same IsFunction semantics as upstream QBCore rather than plain type().
 function QBCore.Functions.TriggerCallback(name, ...)
     if type(name) ~= 'string' or name == '' then return nil end
 
     local args = { ... }
     local cb
-    if type(args[1]) == 'function' then
+    if isFunction(args[1]) then
         cb = args[1]
         table.remove(args, 1)
     end
@@ -50,7 +60,7 @@ end
 
 QBCore.Functions.GetPlayerData = function(cb)
     local data = refreshPlayerData()
-    if type(cb) == 'function' then cb(data) end
+    if isFunction(cb) then cb(data) end
     return data
 end
 QBCore.Functions.GetPlayer = function()
