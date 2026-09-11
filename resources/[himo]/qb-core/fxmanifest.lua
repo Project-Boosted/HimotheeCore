@@ -4,7 +4,7 @@ game 'gta5'
 name 'qb-core'
 author 'HimotheeGaming'
 description 'QBCore compatibility facade backed by HimotheeCore'
-version '0.5.6'
+version '0.5.7'
 
 lua54 'yes'
 
