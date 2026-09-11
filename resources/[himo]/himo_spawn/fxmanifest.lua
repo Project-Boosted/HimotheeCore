@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_spawn'
 author 'HimotheeGaming'
 description 'HimotheeCore spawn selection and handoff'
-version '0.5.0'
+version '0.5.1'
 
 lua54 'yes'
 
