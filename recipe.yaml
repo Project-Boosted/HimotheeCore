@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.4.3
+version: 0.5.0
 author: HimotheeGaming
-description: Stage 1D compatibility layer with native HimotheeCore, QBCore/Qbox facades, Jim Bridge, and stable multicharacter/spawn/Illenium lifecycle.
+description: Stage 1D compatibility layer with QBCore/Qbox facades, Jim Bridge, ox_inventory, ox_target, and stable Himothee lifecycle.
 
 tasks:
   - action: download_github
@@ -29,22 +29,49 @@ tasks:
     src: ./tmp/oxmysql.zip
     dest: ./resources/[dependencies]
 
-  # Jimathy's bridge is pinned to the audited commit used by HimotheeCore v0.4.3.
+  # Audited/pinned interaction and inventory releases for reproducible compatibility.
+  - action: download_file
+    url: https://github.com/overextended/ox_target/releases/download/v1.18.1/ox_target.zip
+    path: ./tmp/ox_target.zip
+
+  - action: unzip
+    src: ./tmp/ox_target.zip
+    dest: ./resources/[dependencies]
+
+  - action: download_file
+    url: https://github.com/overextended/ox_inventory/releases/download/v2.47.9/ox_inventory.zip
+    path: ./tmp/ox_inventory.zip
+
+  - action: unzip
+    src: ./tmp/ox_inventory.zip
+    dest: ./resources/[dependencies]
+
+  # ox_inventory's Qbox bridge normally points at Qbox's `players` and
+  # `player_vehicles` tables. HimotheeCore keeps its own native schema, so map
+  # only those persistence table names/columns to the equivalent native tables.
+  - action: replace_string
+    mode: literal
+    file: ./resources/[dependencies]/ox_inventory/modules/mysql/server.lua
+    search: "playerTable = 'players'"
+    replace: "playerTable = 'himo_characters'"
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[dependencies]/ox_inventory/modules/mysql/server.lua
+    search: "playerColumn = 'citizenid'"
+    replace: "playerColumn = 'citizen_id'"
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[dependencies]/ox_inventory/modules/mysql/server.lua
+    search: "vehicleTable = 'player_vehicles'"
+    replace: "vehicleTable = 'himo_vehicles'"
+
+  # Jimathy's bridge is pinned to the audited compatibility revision.
   - action: download_github
     src: https://github.com/jimathy/jim_bridge
     ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60
     dest: ./resources/[dependencies]/jim_bridge
-
-  # HimotheeCore exposes both QB and Qbox facades. Until the inventory layer is
-  # implemented, force Jim Bridge down its QB path because Jim's QBX getPlayer
-  # path assumes ox_inventory is installed and uses its money item directly.
-  - action: replace_string
-    mode: literal
-    file:
-      - ./resources/[dependencies]/jim_bridge/starter.lua
-      - ./resources/[dependencies]/jim_bridge/frameworkCache.lua
-    search: 'QBXExport = "qbx_core",'
-    replace: 'QBXExport = "himo_qbx_disabled_for_jim",'
 
   - action: download_file
     url: https://github.com/iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip
@@ -87,6 +114,9 @@ tasks:
 
   - action: query_database
     file: ./tmp/himotheecore/database/005_stage1c_account_roles.sql
+
+  - action: query_database
+    file: ./tmp/himotheecore/database/006_stage1d_compatibility.sql
 
   - action: query_database
     file: ./resources/[dependencies]/illenium-appearance/sql/playerskins.sql
