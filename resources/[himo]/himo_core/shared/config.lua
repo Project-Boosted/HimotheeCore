@@ -1,10 +1,10 @@
 HimoConfig = HimoConfig or {}
 
 HimoConfig.FrameworkName = 'HimotheeCore'
-HimoConfig.Version = '0.4.2'
+HimoConfig.Version = '0.4.3'
 HimoConfig.RequiredSchemaVersion = 4
-HimoConfig.Stage = '1C'
-HimoConfig.Build = 'core-services'
+HimoConfig.Stage = '1D'
+HimoConfig.Build = 'compatibility-layer'
 
 HimoConfig.Debug = GetConvarInt('himo:debug', 0) == 1
 HimoConfig.MaxCharacters = math.max(1, GetConvarInt('himo:maxCharacters', 4))
@@ -20,7 +20,8 @@ HimoConfig.DefaultMetadata = {
     isdead = false,
     inlaststand = false,
     ishandcuffed = false,
-    tracker = false
+    tracker = false,
+    licences = {}
 }
 
 -- Only explicitly safe gameplay state is replicated to clients/statebags.
