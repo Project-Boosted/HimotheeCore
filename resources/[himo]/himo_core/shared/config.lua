@@ -1,8 +1,8 @@
 HimoConfig = HimoConfig or {}
 
 HimoConfig.FrameworkName = 'HimotheeCore'
-HimoConfig.Version = '0.4.3'
-HimoConfig.RequiredSchemaVersion = 4
+HimoConfig.Version = '0.5.0'
+HimoConfig.RequiredSchemaVersion = 5
 HimoConfig.Stage = '1D'
 HimoConfig.Build = 'compatibility-layer'
 
