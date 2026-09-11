@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_core'
 author 'HimotheeGaming'
 description 'HimotheeCore modular roleplay framework core services'
-version '0.5.8'
+version '0.5.9'
 
 lua54 'yes'
 
@@ -33,6 +33,7 @@ server_scripts {
     'server/lifecycle.lua',
     'server/admin.lua',
     'server/compat_callbacks.lua',
+    'server/jim_acceptance.lua',
     'server/selftest.lua',
     'server/main.lua'
 }
