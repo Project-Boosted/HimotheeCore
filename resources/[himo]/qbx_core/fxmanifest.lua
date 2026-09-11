@@ -4,7 +4,7 @@ game 'gta5'
 name 'qbx_core'
 author 'HimotheeGaming'
 description 'Qbox compatibility facade backed by HimotheeCore'
-version '1.23.0-himo.1'
+version '1.23.0'
 
 lua54 'yes'
 
