@@ -1,5 +1,70 @@
-local QB = exports['qb-core']:GetCoreObject()
 local VERSION = '1.23.0'
+
+local function qb()
+    return exports['qb-core']:GetCoreObject()
+end
+
+local function hasEntries(value)
+    return type(value) == 'table' and next(value) ~= nil
+end
+
+local function fallbackJobs()
+    return {
+        unemployed = {
+            label = 'Unemployed', type = 'none', defaultDuty = false, offDutyPay = false,
+            grades = { [0] = { name = 'Unemployed', label = 'Unemployed', payment = 0, isboss = false } }
+        }
+    }
+end
+
+local function fallbackGangs()
+    return {
+        none = {
+            label = 'No Gang', type = 'gang',
+            grades = { [0] = { name = 'none', label = 'none', isboss = false } }
+        }
+    }
+end
+
+local function sharedCatalog(namespace)
+    local authoritative = exports.himo_qb_bridge:GetSharedCatalog(namespace)
+    if hasEntries(authoritative) then return authoritative end
+
+    if namespace == 'Jobs' then
+        local native = exports.himo_core:GetJobDefinitions() or {}
+        if hasEntries(native) then
+            exports.himo_qb_bridge:SetSharedCatalog('Jobs', native)
+            return native
+        end
+        return fallbackJobs()
+    end
+
+    if namespace == 'Gangs' then
+        local native = exports.himo_core:GetGroupDefinitions('gang') or {}
+        if hasEntries(native) then
+            exports.himo_qb_bridge:SetSharedCatalog('Gangs', native)
+            return native
+        end
+        return fallbackGangs()
+    end
+
+    local object = qb()
+    local shared = object and object.Shared and object.Shared[namespace]
+    return type(shared) == 'table' and shared or {}
+end
+
+local function vehicleCatalog()
+    local authoritative = exports.himo_qb_bridge:GetSharedCatalog('Vehicles')
+    if hasEntries(authoritative) then return authoritative end
+
+    local ok, loaded = pcall(function()
+        return exports.qbx_core:GetLoadedVehicleCatalog()
+    end)
+    if ok and hasEntries(loaded) then return loaded end
+
+    local object = qb()
+    return object and object.Shared and object.Shared.Vehicles or {}
+end
 
 local function resolveSource(identifier)
     if type(identifier) == 'number' then return identifier end
@@ -7,7 +72,8 @@ local function resolveSource(identifier)
     if numeric and GetPlayerName(numeric) then return numeric end
 
     if type(identifier) == 'string' then
-        local byCitizen = QB.Functions.GetPlayerByCitizenId(identifier)
+        local object = qb()
+        local byCitizen = object.Functions.GetPlayerByCitizenId(identifier)
         if byCitizen and byCitizen.PlayerData then return byCitizen.PlayerData.source end
         for _, source in ipairs(GetPlayers()) do
             local src = tonumber(source)
@@ -20,13 +86,18 @@ end
 
 local function getPlayer(identifier)
     local source = resolveSource(identifier)
-    return source and QB.Functions.GetPlayer(source) or nil
+    if not source then return nil end
+    return qb().Functions.GetPlayer(source)
 end
 
 local function combinedGroups(source)
     local result = {}
-    for _, row in ipairs(exports.himo_core:GetJobs(source) or {}) do result[row.job_name] = tonumber(row.grade) or 0 end
-    for _, row in ipairs(exports.himo_core:GetGroups(source) or {}) do result[row.group_name] = tonumber(row.grade) or 0 end
+    for _, row in ipairs(exports.himo_core:GetJobs(source) or {}) do
+        if row.job_name then result[row.job_name] = tonumber(row.grade) or 0 end
+    end
+    for _, row in ipairs(exports.himo_core:GetGroups(source) or {}) do
+        if row.group_name then result[row.group_name] = tonumber(row.grade) or 0 end
+    end
     return result
 end
 
@@ -34,6 +105,7 @@ local function matchesFilter(source, filter, primaryOnly)
     local player = getPlayer(source)
     if not player then return false end
     local groups = combinedGroups(source)
+
     if primaryOnly then
         groups = {}
         local job, gang = player.PlayerData.job, player.PlayerData.gang
@@ -41,40 +113,24 @@ local function matchesFilter(source, filter, primaryOnly)
         if gang and gang.name then groups[gang.name] = tonumber(gang.grade and gang.grade.level) or 0 end
     end
 
-    if type(filter) == 'string' then return filter == player.PlayerData.citizenid or groups[filter] ~= nil end
+    if type(filter) == 'string' then
+        return filter == player.PlayerData.citizenid or groups[filter] ~= nil
+    end
     if type(filter) ~= 'table' then return false end
+
     if #filter > 0 then
         for _, value in ipairs(filter) do
             if value == player.PlayerData.citizenid or groups[value] ~= nil then return true end
         end
         return false
     end
+
     for name, requiredGrade in pairs(filter) do
         if name == player.PlayerData.citizenid then return true end
         local grade = groups[name]
         if grade ~= nil and grade >= (tonumber(requiredGrade) or 0) then return true end
     end
     return false
-end
-
-local function vehicleCatalog()
-    -- Do not rely on the QB object captured when this file started. Resource
-    -- exports cross a boundary and that startup snapshot can remain empty even
-    -- after server/vehicles.lua has loaded and synchronized the real catalogue.
-    local ok, loaded = pcall(function()
-        return exports.qbx_core:GetLoadedVehicleCatalog()
-    end)
-    if ok and type(loaded) == 'table' and next(loaded) ~= nil then
-        return loaded
-    end
-
-    local authoritative = exports.himo_qb_bridge:GetSharedCatalog('Vehicles')
-    if type(authoritative) == 'table' and next(authoritative) ~= nil then
-        return authoritative
-    end
-
-    local fresh = exports['qb-core']:GetCoreObject()
-    return fresh and fresh.Shared and fresh.Shared.Vehicles or {}
 end
 
 exports('GetCoreVersion', function() return VERSION end)
@@ -84,7 +140,7 @@ exports('GetUserId', function(identifier)
     return source and (exports.himo_core:GetAccountId(source) or 0) or 0
 end)
 exports('GetPlayer', getPlayer)
-exports('GetPlayerByCitizenId', function(citizenId) return QB.Functions.GetPlayerByCitizenId(citizenId) end)
+exports('GetPlayerByCitizenId', function(citizenId) return qb().Functions.GetPlayerByCitizenId(citizenId) end)
 exports('GetPlayerByUserId', function(userId)
     userId = tonumber(userId)
     if not userId then return nil end
@@ -100,26 +156,32 @@ exports('GetPlayerByPhone', function(number)
         if player and player.PlayerData.charinfo and player.PlayerData.charinfo.phone == number then return player end
     end
 end)
-exports('GetQBPlayers', function() return QB.Functions.GetQBPlayers() end)
+exports('GetQBPlayers', function() return qb().Functions.GetQBPlayers() end)
 exports('GetPlayersData', function()
     local data = {}
-    for _, player in pairs(QB.Functions.GetQBPlayers()) do data[#data + 1] = player.PlayerData end
+    for _, player in pairs(qb().Functions.GetQBPlayers()) do data[#data + 1] = player.PlayerData end
     return data
 end)
 
-exports('GetJobs', function() return QB.Shared.Jobs or {} end)
-exports('GetGangs', function() return QB.Shared.Gangs or {} end)
-exports('GetJob', function(name) return QB.Shared.Jobs and QB.Shared.Jobs[name] or nil end)
-exports('GetGang', function(name) return QB.Shared.Gangs and QB.Shared.Gangs[name] or nil end)
+exports('GetJobs', function() return sharedCatalog('Jobs') end)
+exports('GetGangs', function() return sharedCatalog('Gangs') end)
+exports('GetJob', function(name)
+    local jobs = sharedCatalog('Jobs')
+    return jobs[name]
+end)
+exports('GetGang', function(name)
+    local gangs = sharedCatalog('Gangs')
+    return gangs[name]
+end)
 exports('GetVehiclesByName', function(vehicle)
     local vehicles = vehicleCatalog()
     return vehicle and vehicles[vehicle] or vehicles
 end)
 exports('GetWeapons', function(weapon)
-    local weapons = QB.Shared.Weapons or {}
+    local weapons = sharedCatalog('Weapons')
     return weapon and weapons[weapon] or weapons
 end)
-exports('GetLocations', function() return QB.Shared.Locations or {} end)
+exports('GetLocations', function() return sharedCatalog('Locations') end)
 
 exports('GetMetadata', function(identifier, key)
     local player = getPlayer(identifier)
@@ -171,14 +233,14 @@ exports('HasGroup', function(source, filter) return matchesFilter(resolveSource(
 exports('HasPrimaryGroup', function(source, filter) return matchesFilter(resolveSource(source) or source, filter, true) end)
 exports('IsGradeBoss', function(groupName, grade)
     grade = tonumber(grade) or 0
-    local group = (QB.Shared.Jobs and QB.Shared.Jobs[groupName]) or (QB.Shared.Gangs and QB.Shared.Gangs[groupName])
+    local group = sharedCatalog('Jobs')[groupName] or sharedCatalog('Gangs')[groupName]
     local gradeData = group and group.grades and (group.grades[grade] or group.grades[tostring(grade)])
     return gradeData and (gradeData.isboss == true or gradeData.isBoss == true) or false
 end)
 
 exports('GetDutyCountJob', function(jobName)
     local players, count = {}, 0
-    for source, player in pairs(QB.Functions.GetQBPlayers()) do
+    for source, player in pairs(qb().Functions.GetQBPlayers()) do
         local job = player.PlayerData.job
         if job and job.name == jobName and job.onduty then
             count = count + 1
@@ -189,7 +251,7 @@ exports('GetDutyCountJob', function(jobName)
 end)
 exports('GetDutyCountType', function(jobType)
     local players, count = {}, 0
-    for source, player in pairs(QB.Functions.GetQBPlayers()) do
+    for source, player in pairs(qb().Functions.GetQBPlayers()) do
         local job = player.PlayerData.job
         if job and job.type == jobType and job.onduty then
             count = count + 1
@@ -199,9 +261,9 @@ exports('GetDutyCountType', function(jobType)
     return count, players
 end)
 
-exports('CreateUseableItem', function(itemName, cb) return QB.Functions.CreateUseableItem(itemName, cb) end)
-exports('CanUseItem', function(itemName) return QB.Functions.CanUseItem(itemName) end)
-exports('HasPermission', function(source, permission) return QB.Functions.HasPermission(source, permission) end)
+exports('CreateUseableItem', function(itemName, cb) return qb().Functions.CreateUseableItem(itemName, cb) end)
+exports('CanUseItem', function(itemName) return qb().Functions.CanUseItem(itemName) end)
+exports('HasPermission', function(source, permission) return qb().Functions.HasPermission(source, permission) end)
 exports('Notify', function(source, text, notifyType, duration, subTitle, notifyPosition, notifyStyle, notifyIcon, notifyIconColor)
     local description = type(text) == 'table' and (text.caption or text.text) or tostring(text)
     TriggerClientEvent('ox_lib:notify', source, {
