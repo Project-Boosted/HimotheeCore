@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_qb_bridge'
 author 'HimotheeGaming'
 description 'Internal QB compatibility engine backed by HimotheeCore native services'
-version '0.5.9'
+version '0.6.0'
 
 lua54 'yes'
 
@@ -17,13 +17,16 @@ client_scripts {
 }
 
 server_scripts {
+    '@oxmysql/lib/MySQL.lua',
     'server/main.lua',
     'server/helpers.lua',
     'server/shared.lua',
-    'server/catalog.lua'
+    'server/catalog.lua',
+    'server/project_sloth.lua'
 }
 
 dependencies {
     'ox_lib',
+    'oxmysql',
     'himo_core'
 }
