@@ -1,7 +1,7 @@
 local QB = exports['qb-core']:GetCoreObject()
 
 local function playerData()
-    return QB.Functions.GetPlayerData()
+    return QB.Functions.GetPlayerData() or {}
 end
 
 local function groups(primaryOnly)
@@ -12,10 +12,10 @@ local function groups(primaryOnly)
 
     if not primaryOnly then
         for _, row in ipairs(exports.himo_core:GetJobs() or {}) do
-            result[row.job_name] = tonumber(row.grade) or 0
+            if row.job_name then result[row.job_name] = tonumber(row.grade) or 0 end
         end
         for _, row in ipairs(exports.himo_core:GetGroups() or {}) do
-            result[row.group_name] = tonumber(row.grade) or 0
+            if row.group_name then result[row.group_name] = tonumber(row.grade) or 0 end
         end
     end
     return result, data.citizenid
@@ -39,6 +39,20 @@ local function matches(filter, primaryOnly)
         end
     end
     return false
+end
+
+local function publishGroups(groupName, groupGrade)
+    local snapshot = groups(false)
+
+    -- ox_inventory's QBX bridge expects PlayerData.groups to exist before it
+    -- handles qbx_core:client:onGroupUpdate. Real qbx_core primes this state via
+    -- qbx_core:client:setGroups; mirror that contract before every incremental
+    -- update so early character-load job events cannot index nil.
+    TriggerEvent('qbx_core:client:setGroups', snapshot)
+
+    if groupName then
+        TriggerEvent('qbx_core:client:onGroupUpdate', groupName, groupGrade)
+    end
 end
 
 exports('GetPlayerData', playerData)
@@ -75,14 +89,23 @@ exports('Notify', function(text, notifyType, duration, subTitle, notifyPosition,
     })
 end)
 
+RegisterNetEvent('himo_core:client:characterLoaded', function()
+    SetTimeout(0, function()
+        publishGroups()
+    end)
+end)
+
 RegisterNetEvent('himo_core:client:jobsChanged', function(_, primary)
-    if primary then
-        TriggerEvent('qbx_core:client:onGroupUpdate', primary.job_name, tonumber(primary.grade) or 0)
-    end
+    publishGroups(primary and primary.job_name or nil, primary and tonumber(primary.grade) or nil)
 end)
 
 RegisterNetEvent('himo_core:client:groupsChanged', function(_, primary)
-    if primary then
-        TriggerEvent('qbx_core:client:onGroupUpdate', primary.group_name, tonumber(primary.grade) or 0)
-    end
+    publishGroups(primary and primary.group_name or nil, primary and tonumber(primary.grade) or nil)
+end)
+
+AddEventHandler('onClientResourceStart', function(resourceName)
+    if resourceName ~= 'ox_inventory' then return end
+    SetTimeout(250, function()
+        publishGroups()
+    end)
 end)
