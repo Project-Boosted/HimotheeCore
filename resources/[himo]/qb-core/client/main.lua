@@ -3,27 +3,20 @@ local sharedMirror = {
     Items = {}, Vehicles = {}, Weapons = {}, Locations = {}, StarterItems = {}, Jobs = {}, Gangs = {}
 }
 
--- Keep the public QBCore object local to the qb-core facade. Returning a table
--- from himo_qb_bridge, mutating it here, then exporting it again adds a second
--- resource boundary and can drop dynamically attached functions such as
--- TriggerCallback. Real QB scripts expect this exact object to own its methods.
 local QBCore = {
     Functions = {},
+    PlayerData = {},
     Shared = sharedMirror
 }
 
-local function bridgeCore()
-    local ok, object = pcall(function()
-        return exports['himo_qb_bridge']:GetCoreObject()
+local function refreshPlayerData()
+    local ok, data = pcall(function()
+        return exports.himo_qb_bridge:GetPlayerData()
     end)
-    return ok and type(object) == 'table' and object or nil
-end
-
-local function callBridge(functionName, ...)
-    local object = bridgeCore()
-    local fn = object and object.Functions and object.Functions[functionName]
-    if type(fn) ~= 'function' then return nil end
-    return fn(...)
+    if ok and type(data) == 'table' then
+        QBCore.PlayerData = data
+    end
+    return QBCore.PlayerData
 end
 
 local function triggerCallback(name, cb, ...)
@@ -35,7 +28,7 @@ end
 
 QBCore.Functions.TriggerCallback = triggerCallback
 QBCore.Functions.GetPlayerData = function(cb)
-    local data = callBridge('GetPlayerData') or {}
+    local data = refreshPlayerData()
     if type(cb) == 'function' then cb(data) end
     return data
 end
@@ -43,17 +36,28 @@ QBCore.Functions.GetPlayer = function()
     return QBCore.Functions.GetPlayerData()
 end
 QBCore.Functions.Notify = function(...)
-    return callBridge('Notify', ...)
+    return exports.himo_qb_bridge:Notify(...)
 end
-
-for _, functionName in ipairs({
-    'Progressbar', 'HasItem', 'GetCoords', 'GetVehicle', 'GetPlate',
-    'SpawnVehicle', 'DeleteVehicle'
-}) do
-    local name = functionName
-    QBCore.Functions[name] = function(...)
-        return callBridge(name, ...)
-    end
+QBCore.Functions.Progressbar = function(...)
+    return exports.himo_qb_bridge:Progressbar(...)
+end
+QBCore.Functions.HasItem = function(...)
+    return exports.himo_qb_bridge:HasItem(...)
+end
+QBCore.Functions.GetCoords = function(...)
+    return exports.himo_qb_bridge:GetCoords(...)
+end
+QBCore.Functions.GetVehicle = function(...)
+    return exports.himo_qb_bridge:GetVehicle(...)
+end
+QBCore.Functions.GetPlate = function(...)
+    return exports.himo_qb_bridge:GetPlate(...)
+end
+QBCore.Functions.SpawnVehicle = function(...)
+    return exports.himo_qb_bridge:SpawnVehicle(...)
+end
+QBCore.Functions.DeleteVehicle = function(...)
+    return exports.himo_qb_bridge:DeleteVehicle(...)
 end
 
 RegisterNetEvent('QBCore:Client:TriggerCallback', function(name, ...)
@@ -61,6 +65,14 @@ RegisterNetEvent('QBCore:Client:TriggerCallback', function(name, ...)
     if not cb then return end
     clientCallbacks[name] = nil
     cb(...)
+end)
+
+RegisterNetEvent('QBCore:Player:SetPlayerData', function(data)
+    if type(data) == 'table' then QBCore.PlayerData = data end
+end)
+
+RegisterNetEvent('QBCore:Client:OnPlayerUnload', function()
+    QBCore.PlayerData = {}
 end)
 
 RegisterNetEvent('himo_qb_bridge:client:setShared', function(jobs, gangs, items, vehicles)
@@ -71,9 +83,19 @@ RegisterNetEvent('himo_qb_bridge:client:setShared', function(jobs, gangs, items,
     QBCore.Shared = sharedMirror
 end)
 
-exports('GetCoreObject', function()
-    return QBCore
-end)
+local function getCoreObject(filters)
+    if type(filters) ~= 'table' then return QBCore end
+    local result = {}
+    for i = 1, #filters do
+        local key = filters[i]
+        if QBCore[key] ~= nil then result[key] = QBCore[key] end
+    end
+    return result
+end
+
+exports('GetCoreObject', getCoreObject)
+exports('GetPlayerData', function() return QBCore.Functions.GetPlayerData() end)
+exports('TriggerCallback', triggerCallback)
 
 exports('GetShared', function(namespace, item)
     local value = QBCore.Shared[namespace]
@@ -96,4 +118,9 @@ end)
 exports('ChangeText', function(text, position)
     lib.hideTextUI()
     lib.showTextUI(tostring(text), { position = position or 'right-center' })
+end)
+
+CreateThread(function()
+    while not exports.himo_core:IsCharacterLoaded() do Wait(250) end
+    refreshPlayerData()
 end)
