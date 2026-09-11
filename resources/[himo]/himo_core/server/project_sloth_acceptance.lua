@@ -77,17 +77,39 @@ HimoCommands.register('himopstest', {}, function(source, args, raw, respond)
     end)
     provisionOk = provisionOk and provisionResult == true
 
-    local adminContractOk = false
+    local adminChecks = {
+        IsOptin = false,
+        Notify = false,
+        GetPlayer = false,
+        GetIdentifier = false,
+        HasPermission = false,
+        AddPermission = false,
+        GetOfflinePlayer = false,
+        Trim = false,
+    }
+
     local coreOk, qb = pcall(function()
         return exports['qb-core']:GetCoreObject()
     end)
     if coreOk and type(qb) == 'table' and type(qb.Functions) == 'table' and type(qb.Shared) == 'table' then
-        adminContractOk = isCallable(qb.Functions.IsOptin)
-            and isCallable(qb.Functions.HasPermission)
-            and isCallable(qb.Functions.GetIdentifier)
-            and isCallable(qb.Functions.AddPermission)
-            and isCallable(qb.Shared.Trim)
+        adminChecks.IsOptin = isCallable(qb.Functions.IsOptin)
+        adminChecks.Notify = isCallable(qb.Functions.Notify)
+        adminChecks.GetPlayer = isCallable(qb.Functions.GetPlayer)
+        adminChecks.GetIdentifier = isCallable(qb.Functions.GetIdentifier)
+        adminChecks.HasPermission = isCallable(qb.Functions.HasPermission)
+        adminChecks.AddPermission = isCallable(qb.Functions.AddPermission)
+        adminChecks.GetOfflinePlayer = isCallable(qb.Functions.GetOfflinePlayerByCitizenId)
+        adminChecks.Trim = isCallable(qb.Shared.Trim)
     end
+
+    local adminContractOk = true
+    local adminParts = {}
+    for _, name in ipairs({ 'IsOptin', 'Notify', 'GetPlayer', 'GetIdentifier', 'HasPermission', 'AddPermission', 'GetOfflinePlayer', 'Trim' }) do
+        local ok = adminChecks[name] == true
+        if not ok then adminContractOk = false end
+        adminParts[#adminParts + 1] = ('%s=%s'):format(name, tostring(ok))
+    end
+    respond(source, 'PS admin contract | ' .. table.concat(adminParts, ' '))
 
     local bansOk = tableExists('bans')
     local warnsOk = tableExists('player_warns')
