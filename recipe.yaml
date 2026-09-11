@@ -2,9 +2,9 @@ $engine: 3
 $onesync: "on"
 
 name: HimotheeCore
-version: "0.5.9"
+version: "0.6.0"
 author: HimotheeGaming
-description: Stage 1D real-world Jim gameplay acceptance with pinned Jim Mining and Jim Recycle resources.
+description: Stage 1E Project Sloth compatibility with housing, realtor, MDT, dispatch and admin menu.
 
 tasks:
   - action: download_github
@@ -45,6 +45,14 @@ tasks:
     src: ./tmp/ox_inventory.zip
     dest: ./resources/[dependencies]
 
+  - action: download_file
+    url: https://github.com/overextended/ox_doorlock/releases/download/v1.22.1/ox_doorlock.zip
+    path: ./tmp/ox_doorlock.zip
+
+  - action: unzip
+    src: ./tmp/ox_doorlock.zip
+    dest: ./resources/[dependencies]
+
   - action: replace_string
     mode: literal
     file: ./resources/[dependencies]/ox_inventory/modules/mysql/server.lua
@@ -83,6 +91,132 @@ tasks:
     ref: 118df45c2a8e58ba16913dd0b64fb9164c14faf4
     dest: ./resources/[jim]/jim-recycle
 
+  - action: download_github
+    src: https://github.com/mkafrin/PolyZone
+    ref: 0f9003080706d61ff29b9b3db5332d407632d4df
+    dest: ./resources/[dependencies]/PolyZone
+
+  - action: download_github
+    src: https://github.com/deltanic/fivem-freecam
+    ref: 9b3797d7ac2a6a8c6473d3bb73d1bf86399753d8
+    dest: ./resources/[dependencies]/fivem-freecam
+
+  - action: download_github
+    src: https://github.com/citizenfx/screenshot-basic
+    ref: 5e89d4afb3e28b490344e84b5e2b5ac8cc5d9c75
+    dest: ./resources/[dependencies]/screenshot-basic
+
+  - action: download_github
+    src: https://github.com/Project-Sloth/ps_lib
+    ref: 03ef1861d34a977b4374b4cf20bbaa806e154833
+    dest: ./resources/[ps]/ps_lib
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps_lib/Config.lua
+    search: "Config.Inventory = \"auto\""
+    replace: "Config.Inventory = \"ox_inventory\""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps_lib/Config.lua
+    search: "Config.Target = \"auto\""
+    replace: "Config.Target = \"ox_target\""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps_lib/Config.lua
+    search: "Config.Banking = \"qb\""
+    replace: "Config.Banking = \"none\""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps_lib/Config.lua
+    search: "Config.VehicleKeys = \"qb\""
+    replace: "Config.VehicleKeys = \"none\""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps_lib/Config.lua
+    search: "GetResourceState('qbx_core')"
+    replace: "GetResourceState('himo_qbx_disabled_for_ps')"
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps_lib/bridge/client.lua
+    search: "name = 'qbx_core'"
+    replace: "name = 'himo_qbx_disabled_for_ps'"
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps_lib/bridge/server.lua
+    search: "name = 'qbx_core'"
+    replace: "name = 'himo_qbx_disabled_for_ps'"
+
+  - action: download_github
+    src: https://github.com/Project-Sloth/ps-realtor
+    ref: 99b92d643b70c5a19184944ab177cc9cd0b854b1
+    dest: ./resources/[ps]/ps-realtor
+
+  - action: download_github
+    src: https://github.com/Project-Sloth/ps-housing
+    ref: eaba693b44a8fc87680fb3b02805694e5b11c5f8
+    dest: ./resources/[ps]/ps-housing
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-housing/shared/config.lua
+    search: "Config.Target = \"qb\""
+    replace: "Config.Target = \"ox\""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-housing/shared/config.lua
+    search: "Config.Notify = \"qb\""
+    replace: "Config.Notify = \"ox\""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-housing/shared/config.lua
+    search: "Config.Radial = \"qb\""
+    replace: "Config.Radial = \"ox\""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-housing/shared/config.lua
+    search: "Config.Inventory = \"qb\""
+    replace: "Config.Inventory = \"ox\""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-housing/shared/config.lua
+    search: "Config.EnableLogs = true"
+    replace: "Config.EnableLogs = false"
+
+  - action: download_github
+    src: https://github.com/Project-Sloth/ps-dispatch
+    ref: d488316ae7f579740c93f8bd873fc552a48a7038
+    dest: ./resources/[ps]/ps-dispatch
+
+  - action: download_file
+    url: https://github.com/Project-Sloth/ps-mdt/releases/download/3.1.4/ps-mdt-3.1.4.zip
+    path: ./tmp/ps-mdt-3.1.4.zip
+
+  - action: unzip
+    src: ./tmp/ps-mdt-3.1.4.zip
+    dest: ./resources/[ps]
+
+  - action: download_github
+    src: https://github.com/Project-Sloth/ps-adminmenu
+    ref: 5157d513e2cd22e6d04305643aaa806106db6523
+    dest: ./resources/[ps]/ps-adminmenu
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-adminmenu/shared/config.lua
+    search: "Config.Fuel = \"ps-fuel\""
+    replace: "Config.Fuel = \"ox_fuel\""
+
   - action: download_file
     url: https://github.com/iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip
     path: ./tmp/illenium-appearance.zip
@@ -104,11 +238,15 @@ tasks:
     src: ./tmp/himotheecore/deploy/jim_items.lua
     dest: ./resources/[dependencies]/ox_inventory/data/himo_jim_items.lua
 
+  - action: move_path
+    src: ./tmp/himotheecore/deploy/project_sloth_items.lua
+    dest: ./resources/[dependencies]/ox_inventory/data/himo_project_sloth_items.lua
+
   - action: replace_string
     mode: literal
     file: ./resources/[dependencies]/ox_inventory/modules/items/shared.lua
     search: "ItemList.cash = ItemList.money"
-    replace: "for k, v in pairs(lib.load('data.himo_jim_items') or {}) do v.name = k; pcall(newItem, v) end ItemList.cash = ItemList.money"
+    replace: "for k, v in pairs(lib.load('data.himo_jim_items') or {}) do v.name = k; pcall(newItem, v) end for k, v in pairs(lib.load('data.himo_project_sloth_items') or {}) do v.name = k; pcall(newItem, v) end ItemList.cash = ItemList.money"
 
   - action: remove_path
     path: ./resources/[himo]/qbx_core/shared/vehicles.lua
@@ -148,6 +286,18 @@ tasks:
 
   - action: query_database
     file: ./tmp/himotheecore/database/006_stage1d_compatibility.sql
+
+  - action: query_database
+    file: ./tmp/himotheecore/database/007_stage1e_project_sloth.sql
+
+  - action: query_database
+    file: ./resources/[dependencies]/ox_doorlock/sql/ox_doorlock.sql
+
+  - action: query_database
+    file: "./resources/[ps]/ps-housing/README - INSTALL INSTRUCTIONS/QBOX/properties.sql"
+
+  - action: query_database
+    file: ./resources/[ps]/ps-mdt/sql/qbcore.sql
 
   - action: query_database
     file: ./resources/[dependencies]/illenium-appearance/sql/playerskins.sql
