@@ -4,7 +4,7 @@ game 'gta5'
 name 'qb-menu'
 author 'HimotheeGaming'
 description 'qb-menu compatibility facade backed by ox_lib contexts'
-version '0.5.8'
+version '0.5.9'
 
 lua54 'yes'
 shared_script '@ox_lib/init.lua'
