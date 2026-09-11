@@ -10,10 +10,14 @@ lua54 'yes'
 
 shared_script '@ox_lib/init.lua'
 client_script 'client/main.lua'
-server_script 'server/main.lua'
+server_scripts {
+    'server/vehicles.lua',
+    'server/main.lua'
+}
 
 files {
-    'modules/playerdata.lua'
+    'modules/playerdata.lua',
+    'shared/vehicles.lua'
 }
 
 dependencies {
