@@ -1,10 +1,10 @@
 HimoConfig = HimoConfig or {}
 
 HimoConfig.FrameworkName = 'HimotheeCore'
-HimoConfig.Version = '0.5.2'
+HimoConfig.Version = '0.5.3'
 HimoConfig.RequiredSchemaVersion = 5
 HimoConfig.Stage = '1D'
-HimoConfig.Build = 'jim-vehicle-inventory-contract-fix'
+HimoConfig.Build = 'qbx-runtime-contract-fix'
 
 HimoConfig.Debug = GetConvarInt('himo:debug', 0) == 1
 HimoConfig.MaxCharacters = math.max(1, GetConvarInt('himo:maxCharacters', 4))
