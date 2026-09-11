@@ -9,7 +9,6 @@ local function resolveSource(identifier)
     if type(identifier) == 'string' then
         local byCitizen = QB.Functions.GetPlayerByCitizenId(identifier)
         if byCitizen and byCitizen.PlayerData then return byCitizen.PlayerData.source end
-
         for _, source in ipairs(GetPlayers()) do
             local src = tonumber(source)
             for _, playerIdentifier in ipairs(GetPlayerIdentifiers(src)) do
@@ -26,21 +25,15 @@ end
 
 local function combinedGroups(source)
     local result = {}
-    for _, row in ipairs(exports.himo_core:GetJobs(source) or {}) do
-        result[row.job_name] = tonumber(row.grade) or 0
-    end
-    for _, row in ipairs(exports.himo_core:GetGroups(source) or {}) do
-        result[row.group_name] = tonumber(row.grade) or 0
-    end
+    for _, row in ipairs(exports.himo_core:GetJobs(source) or {}) do result[row.job_name] = tonumber(row.grade) or 0 end
+    for _, row in ipairs(exports.himo_core:GetGroups(source) or {}) do result[row.group_name] = tonumber(row.grade) or 0 end
     return result
 end
 
 local function matchesFilter(source, filter, primaryOnly)
     local player = getPlayer(source)
     if not player then return false end
-    local citizenId = player.PlayerData.citizenid
     local groups = combinedGroups(source)
-
     if primaryOnly then
         groups = {}
         local job, gang = player.PlayerData.job, player.PlayerData.gang
@@ -48,20 +41,18 @@ local function matchesFilter(source, filter, primaryOnly)
         if gang and gang.name then groups[gang.name] = tonumber(gang.grade and gang.grade.level) or 0 end
     end
 
-    if type(filter) == 'string' then
-        return filter == citizenId or groups[filter] ~= nil
-    elseif type(filter) == 'table' then
-        if #filter > 0 then
-            for _, value in ipairs(filter) do
-                if value == citizenId or groups[value] ~= nil then return true end
-            end
-            return false
+    if type(filter) == 'string' then return filter == player.PlayerData.citizenid or groups[filter] ~= nil end
+    if type(filter) ~= 'table' then return false end
+    if #filter > 0 then
+        for _, value in ipairs(filter) do
+            if value == player.PlayerData.citizenid or groups[value] ~= nil then return true end
         end
-        for name, requiredGrade in pairs(filter) do
-            if name == citizenId then return true end
-            local grade = groups[name]
-            if grade ~= nil and grade >= (tonumber(requiredGrade) or 0) then return true end
-        end
+        return false
+    end
+    for name, requiredGrade in pairs(filter) do
+        if name == player.PlayerData.citizenid then return true end
+        local grade = groups[name]
+        if grade ~= nil and grade >= (tonumber(requiredGrade) or 0) then return true end
     end
     return false
 end
@@ -118,7 +109,6 @@ exports('SetMetadata', function(identifier, key, value)
     local player = getPlayer(identifier)
     return player and player.Functions.SetMetaData(key, value) or false
 end)
-
 exports('SetJobDuty', function(identifier, onDuty)
     local player = getPlayer(identifier)
     return player and player.Functions.SetJobDuty(onDuty == true) or false
@@ -156,14 +146,9 @@ exports('SetPlayerPrimaryGang', function(citizenId, gangName)
     local source = resolveSource(citizenId)
     return source and exports.himo_core:SetPrimaryGroup(source, gangName) or false
 end)
-
-exports('GetGroups', function(source)
-    source = resolveSource(source) or source
-    return combinedGroups(source)
-end)
+exports('GetGroups', function(source) return combinedGroups(resolveSource(source) or source) end)
 exports('HasGroup', function(source, filter) return matchesFilter(resolveSource(source) or source, filter, false) end)
 exports('HasPrimaryGroup', function(source, filter) return matchesFilter(resolveSource(source) or source, filter, true) end)
-
 exports('IsGradeBoss', function(groupName, grade)
     grade = tonumber(grade) or 0
     local group = (QB.Shared.Jobs and QB.Shared.Jobs[groupName]) or (QB.Shared.Gangs and QB.Shared.Gangs[groupName])
@@ -175,7 +160,10 @@ exports('GetDutyCountJob', function(jobName)
     local players, count = {}, 0
     for source, player in pairs(QB.Functions.GetQBPlayers()) do
         local job = player.PlayerData.job
-        if job and job.name == jobName and job.onduty then count += 1 players[#players + 1] = source end
+        if job and job.name == jobName and job.onduty then
+            count = count + 1
+            players[#players + 1] = source
+        end
     end
     return count, players
 end)
@@ -183,16 +171,23 @@ exports('GetDutyCountType', function(jobType)
     local players, count = {}, 0
     for source, player in pairs(QB.Functions.GetQBPlayers()) do
         local job = player.PlayerData.job
-        if job and job.type == jobType and job.onduty then count += 1 players[#players + 1] = source end
+        if job and job.type == jobType and job.onduty then
+            count = count + 1
+            players[#players + 1] = source
+        end
     end
     return count, players
 end)
 
-exports('CreateUseableItem', function(itemName, cb)
-    return QB.Functions.CreateUseableItem(itemName, cb)
-end)
-exports('CanUseItem', function(itemName)
-    return QB.Functions.CanUseItem(itemName)
+exports('CreateUseableItem', function(itemName, cb) return QB.Functions.CreateUseableItem(itemName, cb) end)
+exports('CanUseItem', function(itemName) return QB.Functions.CanUseItem(itemName) end)
+exports('HasPermission', function(source, permission) return QB.Functions.HasPermission(source, permission) end)
+exports('Notify', function(source, text, notifyType, duration, subTitle, notifyPosition, notifyStyle, notifyIcon, notifyIconColor)
+    local description = type(text) == 'table' and (text.caption or text.text) or tostring(text)
+    TriggerClientEvent('ox_lib:notify', source, {
+        title = subTitle, description = description, type = notifyType or 'inform', duration = duration or 5000,
+        position = notifyPosition or 'top-right', style = notifyStyle, icon = notifyIcon, iconColor = notifyIconColor
+    })
 end)
 
 exports('SetPlayerBucket', function(source, bucket)
@@ -210,12 +205,12 @@ exports('SetEntityBucket', function(entity, bucket)
     return true
 end)
 exports('GetBucketObjects', function()
-    local players, entities = {}, {}
+    local players = {}
     for _, source in ipairs(GetPlayers()) do
         source = tonumber(source)
         players[source] = GetPlayerRoutingBucket(source)
     end
-    return players, entities
+    return players, {}
 end)
 exports('GetPlayersInBucket', function(bucket)
     bucket = tonumber(bucket)
@@ -235,29 +230,12 @@ exports('GetEntitiesInBucket', function(bucket)
         if GetEntityRoutingBucket(entity) == bucket then entities[#entities + 1] = entity end
     end
     for _, entity in ipairs(GetAllPeds()) do
-        if GetEntityRoutingBucket(entity) == bucket and not IsPedAPlayer(entity) then entities[#entities + 1] = entity end
+        if GetEntityRoutingBucket(entity) == bucket then entities[#entities + 1] = entity end
     end
     for _, entity in ipairs(GetAllVehicles()) do
         if GetEntityRoutingBucket(entity) == bucket then entities[#entities + 1] = entity end
     end
     return #entities > 0 and entities or false
-end)
-
-exports('HasPermission', function(source, permission)
-    return QB.Functions.HasPermission(source, permission)
-end)
-exports('Notify', function(source, text, notifyType, duration, subTitle, notifyPosition, notifyStyle, notifyIcon, notifyIconColor)
-    local description = type(text) == 'table' and (text.caption or text.text) or tostring(text)
-    TriggerClientEvent('ox_lib:notify', source, {
-        title = subTitle,
-        description = description,
-        type = notifyType or 'inform',
-        duration = duration or 5000,
-        position = notifyPosition or 'top-right',
-        style = notifyStyle,
-        icon = notifyIcon,
-        iconColor = notifyIconColor
-    })
 end)
 
 exports('Save', function(source) return exports.himo_core:SavePlayerPosition(resolveSource(source) or source) end)
