@@ -53,7 +53,7 @@ jobs:
           with open('recipe.yaml', encoding='utf-8') as handle:
               data = yaml.safe_load(handle)
           assert data.get('$engine') == 3
-          assert data.get('$onesync') == 'on'
+          assert data.get('$onesync') in ('on', True)
           assert data.get('version') == '0.5.1'
           assert isinstance(data.get('tasks'), list) and data['tasks']
           print('recipe.yaml OK')
