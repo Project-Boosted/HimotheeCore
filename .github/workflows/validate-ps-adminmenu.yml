@@ -42,17 +42,26 @@ jobs:
           luac -p 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
           luac -p 'resources/[himo]/himo_qb_bridge/server/admin_compat.lua'
           luac -p 'resources/[himo]/himo_qb_bridge/client/helpers.lua'
+          luac -p 'resources/[himo]/qb-core/server/main.lua'
           luac -p 'resources/[himo]/qb-core/client/main.lua'
           luac -p 'resources/[himo]/himo_core/server/identifiers.lua'
           luac -p 'resources/[himo]/himo_core/server/project_sloth_acceptance.lua'
 
-          grep -Fq 'QBCore.Functions.IsOptin' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
-          grep -Fq 'QBCore.Functions.ToggleOptin' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
-          grep -Fq 'QBCore.Functions.AddPermission' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
-          grep -Fq "mod = 'staff'" 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
-          grep -Fq 'GetPlayerIdentifierByType' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
-          grep -Fq 'player.PlayerData.license' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
-          grep -Fq 'QBCore.Shared.Trim' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
+          # The live ps-adminmenu caches exports['qb-core']:GetCoreObject() once.
+          # Therefore the contract must be attached by the PUBLIC qb-core facade,
+          # not only by mutating a CoreObject copy inside another resource.
+          grep -Fq 'local function attachCompatibility(object)' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'object.Functions.IsOptin' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'object.Functions.ToggleOptin' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'object.Functions.Notify' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'object.Functions.GetIdentifier' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'object.Functions.HasPermission' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'object.Functions.AddPermission' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'object.Functions.GetOfflinePlayerByCitizenId' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'object.Shared.Trim' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq "mod = 'staff'" 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'GetPlayerIdentifierByType' 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq 'player.PlayerData.license' 'resources/[himo]/qb-core/server/main.lua'
 
           grep -Fq 'QBCore.Functions.GetVehicleProperties' 'resources/[himo]/himo_qb_bridge/client/helpers.lua'
           grep -Fq 'QBCore.Functions.SetVehicleProperties' 'resources/[himo]/himo_qb_bridge/client/helpers.lua'
@@ -64,8 +73,65 @@ jobs:
 
           grep -Fq "'server/admin_compat.lua'" 'resources/[himo]/himo_qb_bridge/fxmanifest.lua'
           grep -Fq 'EnsureAdminCompatibility' 'resources/[himo]/himo_qb_bridge/server/admin_compat.lua'
+          grep -Fq 'PS admin contract | ' 'resources/[himo]/himo_core/server/project_sloth_acceptance.lua'
           grep -Fq 'PS admin bridge | contract=' 'resources/[himo]/himo_core/server/project_sloth_acceptance.lua'
           grep -Fq 'FROM `bans`' 'resources/[himo]/himo_core/server/identifiers.lua'
+
+      - name: Exercise public qb-core CoreObject boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/test-public-qb-core.lua <<'LUA'
+          local registered = {}
+          local bridgeCore = {
+              Functions = {
+                  GetPlayer = function() return nil end,
+                  GetQBPlayers = function() return {} end,
+                  GetPlayerByCitizenId = function() return nil end,
+                  CreateCallback = function() return true end,
+                  CreateUseableItem = function() return true end,
+                  CanUseItem = function() return nil end,
+              },
+              Shared = {}
+          }
+
+          local exportTable = {
+              himo_qb_bridge = {
+                  GetCoreObject = function() return bridgeCore end,
+                  GetSharedCatalog = function() return {} end,
+                  GetOfflinePlayerByCitizenId = function() return nil end,
+              },
+              himo_core = {},
+              qbx_core = {},
+          }
+          setmetatable(exportTable, {
+              __call = function(_, name, fn)
+                  registered[name] = fn
+              end
+          })
+
+          _G.exports = exportTable
+          dofile('resources/[himo]/qb-core/server/main.lua')
+
+          assert(type(registered.GetCoreObject) == 'function', 'GetCoreObject export missing')
+          local qb = registered.GetCoreObject()
+          assert(type(qb) == 'table', 'public CoreObject missing')
+          assert(type(qb.Functions) == 'table', 'public Functions missing')
+          assert(type(qb.Shared) == 'table', 'public Shared missing')
+
+          local requiredFunctions = {
+              'IsOptin', 'ToggleOptin', 'Notify', 'GetPlayer', 'GetQBPlayers',
+              'GetPlayerByCitizenId', 'GetOfflinePlayerByCitizenId', 'GetIdentifier',
+              'HasPermission', 'AddPermission', 'RemovePermission'
+          }
+          for _, name in ipairs(requiredFunctions) do
+              assert(type(qb.Functions[name]) == 'function', ('public Functions.%s missing'):format(name))
+          end
+          assert(type(qb.Shared.Trim) == 'function', 'public Shared.Trim missing')
+          assert(type(qb.Shared.Round) == 'function', 'public Shared.Round missing')
+          print('public qb-core ps-adminmenu contract PASS')
+          LUA
+          lua5.4 /tmp/test-public-qb-core.lua
 
       - name: Validate admin persistence round trip
         shell: bash
