@@ -159,6 +159,12 @@ tasks:
     search: "inventory = data.name"
     replace: "framework = data.name"
 
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps_lib/bridge/framework/qb/server.lua
+    search: "return player.PlayerData.job.grade.payment"
+    replace: "return player.PlayerData.job.grade.payment or player.PlayerData.job.payment"
+
   - action: download_github
     src: https://github.com/Project-Sloth/ps-realtor
     ref: 99b92d643b70c5a19184944ab177cc9cd0b854b1
@@ -307,9 +313,6 @@ tasks:
 
   - action: query_database
     file: ./resources/[dependencies]/illenium-appearance/sql/playerskins.sql
-
-  - action: query_database
-    file: ./resources/[dependencies]/illenium-appearance/sql/player_outfits.sql
 
   - action: query_database
     file: ./resources/[dependencies]/illenium-appearance/sql/player_outfits.sql
