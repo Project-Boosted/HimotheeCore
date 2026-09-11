@@ -11,7 +11,8 @@ end
 
 local function callbackProbe()
     local core = exports['qb-core']:GetCoreObject()
-    if not core or not core.Functions or type(core.Functions.TriggerCallback) ~= 'function' then
+    local trigger = core and core.Functions and core.Functions.TriggerCallback
+    if trigger == nil then
         return false, 'TriggerCallback-missing'
     end
 
@@ -23,13 +24,27 @@ local function callbackProbe()
         pending:resolve(false)
     end)
 
-    core.Functions.TriggerCallback('himo:compat:ping', function(value)
-        if settled then return end
-        settled = true
-        pending:resolve(value == 'pong')
-    end, 'ping')
+    -- FiveM can expose callable cross-resource function references without their
+    -- Lua type necessarily being the literal string "function". Test the
+    -- behaviour scripts depend on: invocation plus a real server round-trip.
+    local invoked, invokeErr = pcall(function()
+        trigger('himo:compat:ping', function(value)
+            if settled then return end
+            settled = true
+            pending:resolve(value == 'pong')
+        end, 'ping')
+    end)
 
-    return Citizen.Await(pending) == true, 'round-trip'
+    if not invoked then
+        if not settled then
+            settled = true
+            pending:resolve(false)
+        end
+        return false, ('invoke-failed:%s'):format(tostring(invokeErr))
+    end
+
+    local passed = Citizen.Await(pending) == true
+    return passed, passed and 'round-trip' or 'round-trip-timeout'
 end
 
 lib.callback.register('himo:compat:clientHealth', function()
