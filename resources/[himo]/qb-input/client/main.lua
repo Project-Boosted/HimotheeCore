@@ -17,25 +17,17 @@ local function mapField(input)
         required = input.isRequired == true,
         default = input.default
     }
-
     if inputType == 'number' then
-        field.type = 'number'
-        field.min = tonumber(input.min)
-        field.max = tonumber(input.max)
+        field.type = 'number'; field.min = tonumber(input.min); field.max = tonumber(input.max)
     elseif inputType == 'password' then
-        field.type = 'input'
-        field.password = true
+        field.type = 'input'; field.password = true
     elseif inputType == 'checkbox' then
         field.type = 'checkbox'
     elseif inputType == 'radio' or inputType == 'select' then
-        field.type = 'select'
-        field.options = mapOptions(input.options)
-        field.clearable = input.isRequired ~= true
+        field.type = 'select'; field.options = mapOptions(input.options); field.clearable = input.isRequired ~= true
     else
-        field.type = 'input'
-        field.placeholder = input.placeholder
+        field.type = 'input'; field.placeholder = input.placeholder
     end
-
     return field
 end
 
@@ -43,21 +35,15 @@ local function showInput(data)
     data = type(data) == 'table' and data or {}
     local inputs = type(data.inputs) == 'table' and data.inputs or {}
     if #inputs == 0 then return nil end
-
     local fields = {}
     for _, input in ipairs(inputs) do fields[#fields + 1] = mapField(input) end
-
-    local values = lib.inputDialog(tostring(data.header or 'Input'), fields, {
-        allowCancel = data.submitText ~= false
-    })
+    local values = lib.inputDialog(tostring(data.header or 'Input'), fields, { allowCancel = data.submitText ~= false })
     if not values then return nil end
-
     local result = {}
-    for index, input in ipairs(inputs) do
-        result[input.name or tostring(index)] = values[index]
-    end
+    for index, input in ipairs(inputs) do result[input.name or tostring(index)] = values[index] end
     return result
 end
 
 exports('ShowInput', showInput)
 exports('showInput', showInput)
+exports('Health', function() return true, 'qb-input->ox_lib' end)
