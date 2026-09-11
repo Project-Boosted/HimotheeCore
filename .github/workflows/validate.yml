@@ -55,7 +55,7 @@ jobs:
               data = yaml.safe_load(handle)
           assert data.get('$engine') == 3
           assert data.get('$onesync') in ('on', True)
-          assert data.get('version') == '0.5.6'
+          assert data.get('version') == '0.5.7'
           assert isinstance(data.get('tasks'), list) and data['tasks']
           PY
           grep -Fq 'overextended/ox_target/releases/download/v1.18.1/ox_target.zip' recipe.yaml
@@ -89,6 +89,7 @@ jobs:
           set -euo pipefail
           CORE='resources/[himo]/himo_core'
           test -f "$CORE/client/compat_test.lua"
+          test -f "$CORE/server/compat_callbacks.lua"
           grep -Fq "HimoCommands.register('himocompat'" "$CORE/server/selftest.lua"
 
           for resource in qb-core qbx_core qbx_vehicles qb-menu qb-input qb-target qb-inventory progressbar; do
@@ -118,7 +119,6 @@ jobs:
           grep -Fq "exports('HasItem'" 'resources/[himo]/himo_qb_bridge/client/helpers.lua'
           grep -Fq 'return exports.himo_qb_bridge:GetPlayerData()' 'resources/[himo]/qb-core/client/main.lua'
           grep -Fq 'QBCore.PlayerData = data' 'resources/[himo]/qb-core/client/main.lua'
-          grep -Fq 'QBCore.Functions.TriggerCallback = triggerCallback' 'resources/[himo]/qb-core/client/main.lua'
           grep -Fq "exports('GetCoreObject', getCoreObject)" 'resources/[himo]/qb-core/client/main.lua'
           ! grep -Fq 'local function bridgeCore()' 'resources/[himo]/qb-core/client/main.lua'
           ! grep -Fq 'local function callBridge(' 'resources/[himo]/qb-core/client/main.lua'
@@ -134,6 +134,20 @@ jobs:
           grep -Fq "local native = exports.himo_core:GetJobDefinitions()" 'resources/[himo]/qbx_core/server/main.lua'
           grep -Fq "local native = exports.himo_core:GetGroupDefinitions('gang')" 'resources/[himo]/qbx_core/server/main.lua'
           ! grep -Fq "local QB = exports['qb-core']:GetCoreObject()" 'resources/[himo]/qbx_core/server/main.lua'
+
+          # v0.5.7: callback compatibility is behavioral and matches QB callback/promise semantics.
+          grep -Fq 'ServerCallbacks = {}' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'function QBCore.Functions.TriggerCallback(name, ...)' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'QBCore.ServerCallbacks[name] = {' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'promise = pending' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq "RegisterNetEvent('QBCore:Client:TriggerCallback'" 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq "exports('TriggerCallback'" 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq "exports('CreateCallback'" 'resources/[himo]/qb-core/server/main.lua'
+          grep -Fq "exports['qb-core']:CreateCallback('himo:compat:ping'" "$CORE/server/compat_callbacks.lua"
+          grep -Fq "local trigger = core and core.Functions and core.Functions.TriggerCallback" "$CORE/client/compat_test.lua"
+          grep -Fq "trigger('himo:compat:ping'" "$CORE/client/compat_test.lua"
+          grep -Fq "value == 'pong'" "$CORE/client/compat_test.lua"
+          ! grep -Fq "type(core.Functions.TriggerCallback) ~= 'function'" "$CORE/client/compat_test.lua"
 
           # Bootstrap module still precedes the public QBX API.
           test -f 'resources/[himo]/qbx_core/server/groups_catalog.lua'
@@ -181,7 +195,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
-          test "$VERSION" = '0.5.6'
+          test "$VERSION" = '0.5.7'
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           grep -Fq "HimoConfig.RequiredSchemaVersion = 5" 'resources/[himo]/himo_core/shared/config.lua'
