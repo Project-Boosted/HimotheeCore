@@ -99,6 +99,7 @@ jobs:
           test -f database/vendor/ps_housing.sql
           grep -Fq 'CREATE TABLE IF NOT EXISTS `properties`' database/vendor/ps_housing.sql
           ! grep -Eiq '^[[:space:]]*DROP[[:space:]]+TABLE' database/vendor/ps_housing.sql
+          ! grep -Fq 'DELIMITER' database/007_stage1e_project_sloth.sql
 
           grep -Fq "replace: \"playerTable = 'himo_characters'\"" recipe.yaml
           grep -Fq "replace: \"playerColumn = 'citizen_id'\"" recipe.yaml
@@ -109,6 +110,10 @@ jobs:
           grep -Fq 'Config.Inventory = \"ox_inventory\"' recipe.yaml
           grep -Fq 'Config.Target = \"ox_target\"' recipe.yaml
           grep -Fq 'Config.Fuel = \"ox_fuel\"' recipe.yaml
+          grep -Fq 'search: "DELIMITER //"' recipe.yaml
+          grep -Fq 'search: "FOR EACH ROW BEGIN"' recipe.yaml
+          grep -Fq 'CREATE OR REPLACE TRIGGER `mdt_reports_charges_after_delete`' recipe.yaml
+          grep -Fq 'CREATE OR REPLACE TRIGGER `mdt_reports_charges_after_insert`' recipe.yaml
 
           test -f deploy/jim_items.lua
           test -f deploy/project_sloth_items.lua
@@ -243,10 +248,11 @@ jobs:
             database/vendor/ps_housing.sql; do
             mariadb -h 127.0.0.1 -uroot himothee_ci < "$sql"
           done
-          # Prove the vendor housing migration is safe to run again on a redeploy.
+          # Prove the Stage 1E and vendor housing migrations are safe on redeploy.
+          mariadb -h 127.0.0.1 -uroot himothee_ci < database/007_stage1e_project_sloth.sql
           mariadb -h 127.0.0.1 -uroot himothee_ci < database/vendor/ps_housing.sql
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT MAX(version) FROM himo_schema_migrations" | grep -qx '6'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM himo_jobs WHERE name IN ('police','ambulance','realestate') AND is_active=1" | grep -qx '3'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME IN ('players','player_vehicles','properties')" | grep -qx '3'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME='himo_vehicles' AND COLUMN_NAME LIKE 'mdt_vehicle_%'" | grep -qx '6'
-          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='himothee_ci' AND TRIGGER_NAME IN ('trg_himo_players_writeback','trg_himo_player_vehicles_writeback')" | grep -qx '2'
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='himothee_ci' AND TRIGGER_NAME IN ('trg_himo_players_metadata_writeback','trg_himo_players_inventory_writeback','trg_himo_player_vehicles_writeback')" | grep -qx '3'
