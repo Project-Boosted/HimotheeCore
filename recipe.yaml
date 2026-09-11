@@ -63,6 +63,90 @@ tasks:
     search: "vehicleTable = 'player_vehicles'"
     replace: "vehicleTable = 'himo_vehicles'"
 
+  # Jim Mining / Jim Recycle expect QB-style material and tool items. Extend the
+  # pinned ox_inventory v2.47.9 catalogue without replacing its standard items.
+  - action: replace_string
+    mode: literal
+    file: ./resources/[dependencies]/ox_inventory/data/items.lua
+    search: |
+      	['scrapmetal'] = {
+      		label = 'Scrap Metal',
+      		weight = 80,
+      	},
+      }
+    replace: |
+      	['scrapmetal'] = {
+      		label = 'Scrap Metal',
+      		weight = 80,
+      	},
+
+      	-- HimotheeCore v0.5.9: Jim Mining / Jim Recycle compatibility items.
+      	['water_bottle'] = { label = 'Water Bottle', weight = 500 },
+      	['sandwich'] = { label = 'Sandwich', weight = 250 },
+      	['goldpan'] = { label = 'Gold Pan', weight = 800, stack = false, consume = 0 },
+      	['pickaxe'] = { label = 'Pickaxe', weight = 2500, stack = false, consume = 0 },
+      	['miningdrill'] = { label = 'Mining Drill', weight = 5000, stack = false, consume = 0 },
+      	['mininglaser'] = { label = 'Mining Laser', weight = 5000, stack = false, consume = 0 },
+      	['drillbit'] = { label = 'Drill Bit', weight = 200 },
+      	['stone'] = { label = 'Stone', weight = 500 },
+      	['carbon'] = { label = 'Carbon', weight = 250 },
+      	['copperore'] = { label = 'Copper Ore', weight = 500 },
+      	['ironore'] = { label = 'Iron Ore', weight = 500 },
+      	['goldore'] = { label = 'Gold Ore', weight = 500 },
+      	['silverore'] = { label = 'Silver Ore', weight = 500 },
+      	['goldingot'] = { label = 'Gold Ingot', weight = 500 },
+      	['silveringot'] = { label = 'Silver Ingot', weight = 500 },
+      	['uncut_ruby'] = { label = 'Uncut Ruby', weight = 100 },
+      	['uncut_emerald'] = { label = 'Uncut Emerald', weight = 100 },
+      	['uncut_diamond'] = { label = 'Uncut Diamond', weight = 100 },
+      	['uncut_sapphire'] = { label = 'Uncut Sapphire', weight = 100 },
+      	['ruby'] = { label = 'Ruby', weight = 75 },
+      	['emerald'] = { label = 'Emerald', weight = 75 },
+      	['diamond'] = { label = 'Diamond', weight = 75 },
+      	['sapphire'] = { label = 'Sapphire', weight = 75 },
+      	['copper'] = { label = 'Copper', weight = 250 },
+      	['iron'] = { label = 'Iron', weight = 250 },
+      	['steel'] = { label = 'Steel', weight = 250 },
+      	['aluminum'] = { label = 'Aluminum', weight = 250 },
+      	['glass'] = { label = 'Glass', weight = 150 },
+      	['rubber'] = { label = 'Rubber', weight = 150 },
+      	['plastic'] = { label = 'Plastic', weight = 100 },
+      	['metalscrap'] = { label = 'Metal Scrap', weight = 200 },
+      	['bottle'] = { label = 'Empty Bottle', weight = 100 },
+      	['can'] = { label = 'Empty Can', weight = 80 },
+      	['recyclablematerial'] = { label = 'Recyclable Material', weight = 300 },
+      	['gold_ring'] = { label = 'Gold Ring', weight = 75 },
+      	['silver_ring'] = { label = 'Silver Ring', weight = 75 },
+      	['goldchain'] = { label = 'Gold Chain', weight = 100 },
+      	['silverchain'] = { label = 'Silver Chain', weight = 100 },
+      	['goldearring'] = { label = 'Gold Earring', weight = 50 },
+      	['silverearring'] = { label = 'Silver Earring', weight = 50 },
+      	['diamond_ring'] = { label = 'Diamond Ring', weight = 75 },
+      	['emerald_ring'] = { label = 'Emerald Ring', weight = 75 },
+      	['ruby_ring'] = { label = 'Ruby Ring', weight = 75 },
+      	['sapphire_ring'] = { label = 'Sapphire Ring', weight = 75 },
+      	['diamond_ring_silver'] = { label = 'Silver Diamond Ring', weight = 75 },
+      	['emerald_ring_silver'] = { label = 'Silver Emerald Ring', weight = 75 },
+      	['ruby_ring_silver'] = { label = 'Silver Ruby Ring', weight = 75 },
+      	['sapphire_ring_silver'] = { label = 'Silver Sapphire Ring', weight = 75 },
+      	['diamond_necklace'] = { label = 'Diamond Necklace', weight = 100 },
+      	['emerald_necklace'] = { label = 'Emerald Necklace', weight = 100 },
+      	['ruby_necklace'] = { label = 'Ruby Necklace', weight = 100 },
+      	['sapphire_necklace'] = { label = 'Sapphire Necklace', weight = 100 },
+      	['diamond_necklace_silver'] = { label = 'Silver Diamond Necklace', weight = 100 },
+      	['emerald_necklace_silver'] = { label = 'Silver Emerald Necklace', weight = 100 },
+      	['ruby_necklace_silver'] = { label = 'Silver Ruby Necklace', weight = 100 },
+      	['sapphire_necklace_silver'] = { label = 'Silver Sapphire Necklace', weight = 100 },
+      	['diamond_earring'] = { label = 'Diamond Earring', weight = 50 },
+      	['emerald_earring'] = { label = 'Emerald Earring', weight = 50 },
+      	['ruby_earring'] = { label = 'Ruby Earring', weight = 50 },
+      	['sapphire_earring'] = { label = 'Sapphire Earring', weight = 50 },
+      	['diamond_earring_silver'] = { label = 'Silver Diamond Earring', weight = 50 },
+      	['emerald_earring_silver'] = { label = 'Silver Emerald Earring', weight = 50 },
+      	['ruby_earring_silver'] = { label = 'Silver Ruby Earring', weight = 50 },
+      	['sapphire_earring_silver'] = { label = 'Silver Sapphire Earring', weight = 50 },
+      }
+
   - action: download_github
     src: https://github.com/Qbox-project/qbx_core
     ref: c1c3ca16721cd14eb814cfb95e8f8631690d247d
