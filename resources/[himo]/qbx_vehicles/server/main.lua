@@ -1,7 +1,10 @@
 local QbxState = { OUT = 0, GARAGED = 1, IMPOUNDED = 2 }
 
 local function trim(value)
-    return tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
+    local result = tostring(value or '')
+    result = result:gsub('^%s+', '')
+    result = result:gsub('%s+$', '')
+    return result
 end
 
 local function decode(value, fallback)
@@ -245,32 +248,74 @@ local function saveVehicle(vehicle, options)
     if options.coords then metadata.coords = options.coords end
     if options.depotPrice ~= nil then metadata.depotPrice = tonumber(options.depotPrice) or 0 end
 
-    local plate = trim(props.plate ~= nil and props.plate or existing.plate)
+    local state = options.state ~= nil and fromQbxState(options.state) or existing.state
+    local garage = options.garage ~= nil and options.garage or existing.garage
     local fuel = tonumber(props.fuelLevel) or tonumber(existing.fuel) or 100
     local engine = tonumber(props.engineHealth) or tonumber(existing.engine_health) or 1000
     local body = tonumber(props.bodyHealth) or tonumber(existing.body_health) or 1000
 
-    MySQL.update.await([[
+    local changed = MySQL.update.await([[
         UPDATE `himo_vehicles`
-        SET `plate` = ?, `garage` = ?, `state` = ?, `fuel` = ?,
-            `engine_health` = ?, `body_health` = ?, `properties` = ?, `metadata` = ?
+        SET `garage` = ?, `state` = ?, `fuel` = ?, `engine_health` = ?, `body_health` = ?,
+            `properties` = ?, `metadata` = ?, `updated_at` = CURRENT_TIMESTAMP
         WHERE `id` = ?
-    ]], {
-        plate,
-        options.garage ~= nil and options.garage or existing.garage,
-        options.state ~= nil and fromQbxState(options.state) or existing.state,
-        fuel, engine, body, encode(props), encode(metadata), vehicleId
-    })
+    ]], { garage, state, fuel, engine, body, encode(props), encode(metadata), vehicleId })
 
-    TriggerEvent('qbx_vehicles:server:vehicleSaved', vehicleId)
-    return true
+    return changed ~= nil and changed > 0
 end
 
-exports('DoesPlayerVehiclePlateExist', doesPlayerVehiclePlateExist)
+local function setVehicleProperties(vehicleId, props)
+    vehicleId = tonumber(vehicleId)
+    if not vehicleId or type(props) ~= 'table' then return false end
+    local existing = MySQL.single.await('SELECT `properties` FROM `himo_vehicles` WHERE `id` = ? LIMIT 1', { vehicleId })
+    if not existing then return false end
+    local merged = decode(existing.properties)
+    for key, value in pairs(props) do merged[key] = value end
+    local changed = MySQL.update.await('UPDATE `himo_vehicles` SET `properties` = ?, `updated_at` = CURRENT_TIMESTAMP WHERE `id` = ?', {
+        encode(merged), vehicleId
+    })
+    return changed ~= nil and changed > 0
+end
+
+local function setVehicleGarage(vehicleId, garage)
+    local changed = MySQL.update.await('UPDATE `himo_vehicles` SET `garage` = ?, `updated_at` = CURRENT_TIMESTAMP WHERE `id` = ?', {
+        garage, tonumber(vehicleId)
+    })
+    return changed ~= nil and changed > 0
+end
+
+local function setVehicleState(vehicleId, state)
+    local changed = MySQL.update.await('UPDATE `himo_vehicles` SET `state` = ?, `updated_at` = CURRENT_TIMESTAMP WHERE `id` = ?', {
+        fromQbxState(state), tonumber(vehicleId)
+    })
+    return changed ~= nil and changed > 0
+end
+
+local function setVehicleDepotPrice(vehicleId, depotPrice)
+    local row = MySQL.single.await('SELECT `metadata` FROM `himo_vehicles` WHERE `id` = ? LIMIT 1', { tonumber(vehicleId) })
+    if not row then return false end
+    local metadata = decode(row.metadata)
+    metadata.depotPrice = tonumber(depotPrice) or 0
+    local changed = MySQL.update.await('UPDATE `himo_vehicles` SET `metadata` = ?, `updated_at` = CURRENT_TIMESTAMP WHERE `id` = ?', {
+        encode(metadata), tonumber(vehicleId)
+    })
+    return changed ~= nil and changed > 0
+end
+
 exports('GetPlayerVehicles', getPlayerVehicles)
 exports('GetPlayerVehicle', getPlayerVehicle)
+exports('GetVehicleIdByPlate', getVehicleIdByPlate)
+exports('DoesPlayerVehiclePlateExist', doesPlayerVehiclePlateExist)
 exports('CreatePlayerVehicle', createPlayerVehicle)
 exports('SetPlayerVehicleOwner', setPlayerVehicleOwner)
 exports('DeletePlayerVehicles', deletePlayerVehicles)
-exports('GetVehicleIdByPlate', getVehicleIdByPlate)
 exports('SaveVehicle', saveVehicle)
+exports('SetVehicleProperties', setVehicleProperties)
+exports('SetVehicleGarage', setVehicleGarage)
+exports('SetVehicleState', setVehicleState)
+exports('SetVehicleDepotPrice', setVehicleDepotPrice)
+
+exports('Health', function()
+    getVehicleIdByPlate('__HIMO_COMPAT_HEALTH__')
+    return true, 'vehicle-persistence'
+end)
