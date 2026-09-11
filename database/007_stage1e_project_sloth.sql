@@ -236,7 +236,7 @@ FOR EACH ROW
 UPDATE `himo_character_metadata` m
 JOIN `himo_characters` c ON c.`id` = m.`character_id`
 SET m.`metadata` = NEW.`metadata`
-WHERE c.`citizen_id` = NEW.`citizenid`
+WHERE c.`citizen_id` COLLATE utf8mb4_general_ci = NEW.`citizenid`
   AND NOT (NEW.`metadata` <=> OLD.`metadata`);
 
 CREATE TRIGGER `trg_himo_players_inventory_writeback`
@@ -244,7 +244,7 @@ AFTER UPDATE ON `players`
 FOR EACH ROW
 UPDATE `himo_characters`
 SET `inventory` = NEW.`inventory`
-WHERE `citizen_id` = NEW.`citizenid`
+WHERE `citizen_id` COLLATE utf8mb4_general_ci = NEW.`citizenid`
   AND NOT (NEW.`inventory` <=> OLD.`inventory`);
 
 DROP TRIGGER IF EXISTS `trg_himo_player_vehicles_writeback`;
@@ -260,7 +260,7 @@ SET
     `mdt_vehicle_stolen` = NEW.`mdt_vehicle_stolen`,
     `mdt_vehicle_boloactive` = NEW.`mdt_vehicle_boloactive`,
     `mdt_vehicle_image` = NEW.`mdt_vehicle_image`
-WHERE `plate` = NEW.`plate`
+WHERE `plate` COLLATE utf8mb4_general_ci = NEW.`plate`
   AND (
       NOT (NEW.`state` <=> OLD.`state`)
       OR NOT (NEW.`mdt_vehicle_information` <=> OLD.`mdt_vehicle_information`)
