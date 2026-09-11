@@ -54,7 +54,7 @@ jobs:
               data = yaml.safe_load(handle)
           assert data.get('$engine') == 3
           assert data.get('$onesync') in ('on', True)
-          assert data.get('version') == '0.5.3'
+          assert data.get('version') == '0.5.4'
           assert isinstance(data.get('tasks'), list) and data['tasks']
           print('recipe.yaml OK')
           PY
@@ -183,6 +183,15 @@ jobs:
           UPDATE_LINE=$(grep -nF "TriggerEvent('qbx_core:client:onGroupUpdate', groupName, groupGrade)" 'resources/[himo]/qbx_core/client/main.lua' | head -n1 | cut -d: -f1)
           test "$SETGROUPS_LINE" -lt "$UPDATE_LINE"
 
+          # v0.5.4 live-server failures: stale shared vehicle object and missing
+          # TriggerCallback on the exact qb-core client object used by scripts.
+          grep -Fq 'local function vehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq 'GetLoadedVehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq "GetSharedCatalog('Vehicles')" 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq 'local vehicles = vehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq 'object.Functions.TriggerCallback = triggerCallback' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'QBCore.Functions.TriggerCallback = function' 'resources/[himo]/himo_qb_bridge/client/main.lua'
+
           grep -Fq 'setr inventory:framework "qbx"' server.cfg
           grep -Fq 'setr inventory:slots 50' server.cfg
           grep -Fq 'setr inventory:weight 120000' server.cfg
@@ -245,7 +254,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
-          test "$VERSION" = '0.5.3'
+          test "$VERSION" = '0.5.4'
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           grep -Fq "HimoConfig.RequiredSchemaVersion = 5" 'resources/[himo]/himo_core/shared/config.lua'
