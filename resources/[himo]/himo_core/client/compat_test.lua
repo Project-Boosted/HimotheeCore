@@ -9,6 +9,29 @@ local function runProbe(label, fn)
     return { ok = true, detail = detail or label }
 end
 
+local function callbackProbe()
+    local core = exports['qb-core']:GetCoreObject()
+    if not core or not core.Functions or type(core.Functions.TriggerCallback) ~= 'function' then
+        return false, 'TriggerCallback-missing'
+    end
+
+    local pending = promise.new()
+    local settled = false
+    SetTimeout(3000, function()
+        if settled then return end
+        settled = true
+        pending:resolve(false)
+    end)
+
+    core.Functions.TriggerCallback('himo:compat:ping', function(value)
+        if settled then return end
+        settled = true
+        pending:resolve(value == 'pong')
+    end, 'ping')
+
+    return Citizen.Await(pending) == true, 'round-trip'
+end
+
 lib.callback.register('himo:compat:clientHealth', function()
     local report = {}
 
@@ -52,6 +75,8 @@ lib.callback.register('himo:compat:clientHealth', function()
         local data = exports.qbx_core:GetPlayerData()
         return type(data) == 'table' and type(data.citizenid) == 'string', 'PlayerData'
     end)
+
+    report.qb_callback = runProbe('qb-callback', callbackProbe)
 
     return report
 end)
