@@ -300,13 +300,16 @@ tasks:
     file: ./resources/[dependencies]/ox_doorlock/sql/ox_doorlock.sql
 
   - action: query_database
-    file: "./resources/[ps]/ps-housing/README - INSTALL INSTRUCTIONS/QBOX/properties.sql"
+    file: ./tmp/himotheecore/database/vendor/ps_housing.sql
 
   - action: query_database
     file: ./resources/[ps]/ps-mdt/sql/qbcore.sql
 
   - action: query_database
     file: ./resources/[dependencies]/illenium-appearance/sql/playerskins.sql
+
+  - action: query_database
+    file: ./resources/[dependencies]/illenium-appearance/sql/player_outfits.sql
 
   - action: query_database
     file: ./resources/[dependencies]/illenium-appearance/sql/player_outfits.sql
