@@ -13,6 +13,12 @@ local function boolText(value)
     return value and 'true' or 'false'
 end
 
+local function tableCount(value)
+    local count = 0
+    for _ in pairs(type(value) == 'table' and value or {}) do count = count + 1 end
+    return count
+end
+
 CreateThread(function()
     local deadline = GetGameTimer() + 30000
     while GetResourceState('qb-core') ~= 'started' and GetGameTimer() < deadline do Wait(250) end
@@ -77,6 +83,14 @@ HimoCommands.register('himocompat', {}, function(source, args, raw, respond)
         return type(player) == 'table' and type(jobs) == 'table', 'player+jobs'
     end)
 
+    checks.catalog, details.catalog = safeProbe(function()
+        if GetResourceState('qbx_core') ~= 'started' then return false, 'qbx-not-started' end
+        local vehicles = exports.qbx_core:GetVehiclesByName()
+        local count = tableCount(vehicles)
+        if count == 0 then return false, 'Shared.Vehicles-empty' end
+        return true, ('definitions=%d'):format(count)
+    end)
+
     checks.vehicles, details.vehicles = safeProbe(function()
         if GetResourceState('qbx_vehicles') ~= 'started' then return false, 'not-started' end
         exports.qbx_vehicles:GetVehicleIdByPlate('__HIMO_COMPAT_HEALTH__')
@@ -94,13 +108,27 @@ HimoCommands.register('himocompat', {}, function(source, args, raw, respond)
         return exports['qb-inventory']:Health(source)
     end)
 
+    checks.invcfg, details.invcfg = safeProbe(function()
+        if GetResourceState('qb-inventory') ~= 'started' then return false, 'not-started' end
+        local legacy = LoadResourceFile('qb-inventory', 'config.lua')
+        local current = LoadResourceFile('qb-inventory', 'config/config.lua')
+        if not legacy and not current then return false, 'config-files-missing' end
+        return true, legacy and 'config.lua' or 'config/config.lua'
+    end)
+
     checks.jim, details.jim = safeProbe(function()
         if GetResourceState('jim_bridge') ~= 'started' then return false, 'not-started' end
         local cache = exports.jim_bridge:GetSharedData()
         if type(cache) ~= 'table' then return false, 'cache-not-table' end
-        if type(cache.Items) ~= 'table' then return false, 'items-missing' end
-        if type(cache.Jobs) ~= 'table' then return false, 'jobs-missing' end
-        return true, 'shared-cache'
+        if type(cache.Items) ~= 'table' or next(cache.Items) == nil then return false, 'items-missing' end
+        if type(cache.Vehicles) ~= 'table' or next(cache.Vehicles) == nil then return false, 'vehicles-missing' end
+        if type(cache.Jobs) ~= 'table' or next(cache.Jobs) == nil then return false, 'jobs-missing' end
+        if tonumber(cache.InventoryWeight) == nil then return false, 'inventory-weight-missing' end
+        if tonumber(cache.InventorySlots) == nil then return false, 'inventory-slots-missing' end
+        return true, ('items=%d vehicles=%d jobs=%d weight=%s slots=%s'):format(
+            tableCount(cache.Items), tableCount(cache.Vehicles), tableCount(cache.Jobs),
+            tostring(cache.InventoryWeight), tostring(cache.InventorySlots)
+        )
     end)
 
     local clientReport
@@ -111,9 +139,9 @@ HimoCommands.register('himocompat', {}, function(source, args, raw, respond)
         clientReport = { callback = { ok = false, detail = clientOk and 'invalid-report' or tostring(clientErr) } }
     end
 
-    respond(source, ('compat server | qb=%s | qbx=%s | vehicles=%s | oxinv=%s | qbinv=%s | jim=%s'):format(
-        boolText(checks.qb), boolText(checks.qbx), boolText(checks.vehicles),
-        boolText(checks.oxinv), boolText(checks.qbinv), boolText(checks.jim)
+    respond(source, ('compat server | qb=%s | qbx=%s | catalog=%s | vehicles=%s | oxinv=%s | qbinv=%s | invcfg=%s | jim=%s'):format(
+        boolText(checks.qb), boolText(checks.qbx), boolText(checks.catalog), boolText(checks.vehicles),
+        boolText(checks.oxinv), boolText(checks.qbinv), boolText(checks.invcfg), boolText(checks.jim)
     ))
 
     local clientNames = { 'qb_core', 'qbx_core', 'qb_callback', 'ox_inventory', 'ox_target', 'qb_inventory', 'qb_target', 'qb_menu', 'qb_input', 'progressbar' }
@@ -142,7 +170,7 @@ HimoCommands.register('himocompat', {}, function(source, args, raw, respond)
     end
 
     if #failures == 0 and allClient then
-        respond(source, 'COMPAT TEST PASS | QB + QBX + callbacks + vehicles + ox_inventory + ox_target + Jim + helper facades')
+        respond(source, 'COMPAT TEST PASS | QB + QBX + callbacks + vehicle catalog + vehicle persistence + ox_inventory + ox_target + Jim + helper facades')
     else
         table.sort(failures)
         respond(source, 'COMPAT TEST FAIL | ' .. table.concat(failures, ', '), { 255, 90, 90 })
