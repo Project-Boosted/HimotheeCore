@@ -16,8 +16,7 @@ server_scripts {
 }
 
 files {
-    'modules/playerdata.lua',
-    'shared/vehicles.lua'
+    'modules/playerdata.lua'
 }
 
 dependencies {
