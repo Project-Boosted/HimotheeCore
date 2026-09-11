@@ -13,6 +13,19 @@ local function boolText(value)
     return value and 'true' or 'false'
 end
 
+CreateThread(function()
+    local deadline = GetGameTimer() + 30000
+    while GetResourceState('qb-core') ~= 'started' and GetGameTimer() < deadline do Wait(250) end
+    if GetResourceState('qb-core') ~= 'started' then return end
+
+    local ok, core = pcall(function() return exports['qb-core']:GetCoreObject() end)
+    if not ok or not core or not core.Functions or type(core.Functions.CreateCallback) ~= 'function' then return end
+
+    core.Functions.CreateCallback('himo:compat:ping', function(source, cb, value)
+        cb(value == 'ping' and 'pong' or 'invalid')
+    end)
+end)
+
 HimoCommands.register('himostatus', {}, function(source, args, raw, respond)
     if source == 0 then return end
     local player = exports['himo_core']:GetPlayer(source)
@@ -103,7 +116,7 @@ HimoCommands.register('himocompat', {}, function(source, args, raw, respond)
         boolText(checks.oxinv), boolText(checks.qbinv), boolText(checks.jim)
     ))
 
-    local clientNames = { 'qb_core', 'qbx_core', 'ox_inventory', 'ox_target', 'qb_inventory', 'qb_target', 'qb_menu', 'qb_input', 'progressbar' }
+    local clientNames = { 'qb_core', 'qbx_core', 'qb_callback', 'ox_inventory', 'ox_target', 'qb_inventory', 'qb_target', 'qb_menu', 'qb_input', 'progressbar' }
     local clientParts = {}
     local allClient = true
     for _, name in ipairs(clientNames) do
@@ -129,7 +142,7 @@ HimoCommands.register('himocompat', {}, function(source, args, raw, respond)
     end
 
     if #failures == 0 and allClient then
-        respond(source, 'COMPAT TEST PASS | QB + QBX + vehicles + ox_inventory + ox_target + Jim + helper facades')
+        respond(source, 'COMPAT TEST PASS | QB + QBX + callbacks + vehicles + ox_inventory + ox_target + Jim + helper facades')
     else
         table.sort(failures)
         respond(source, 'COMPAT TEST FAIL | ' .. table.concat(failures, ', '), { 255, 90, 90 })
