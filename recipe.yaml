@@ -218,6 +218,42 @@ tasks:
     src: ./tmp/ps-mdt-3.1.4.zip
     dest: ./resources/[ps]
 
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-mdt/sql/qbcore.sql
+    search: "DELIMITER //"
+    replace: ""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-mdt/sql/qbcore.sql
+    search: "FOR EACH ROW BEGIN"
+    replace: "FOR EACH ROW"
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-mdt/sql/qbcore.sql
+    search: "END//"
+    replace: ""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-mdt/sql/qbcore.sql
+    search: "DELIMITER ;"
+    replace: ""
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-mdt/sql/qbcore.sql
+    search: "CREATE TRIGGER `mdt_reports_charges_after_delete`"
+    replace: "CREATE OR REPLACE TRIGGER `mdt_reports_charges_after_delete`"
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps-mdt/sql/qbcore.sql
+    search: "CREATE TRIGGER `mdt_reports_charges_after_insert`"
+    replace: "CREATE OR REPLACE TRIGGER `mdt_reports_charges_after_insert`"
+
   - action: download_github
     src: https://github.com/Project-Sloth/ps-adminmenu
     ref: 5157d513e2cd22e6d04305643aaa806106db6523
