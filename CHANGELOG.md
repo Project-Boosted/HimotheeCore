@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.2 - Jim Vehicle & Inventory Contract Fix
+
+- Fixed Jim Bridge reporting an empty `qbx_core` vehicle list by populating `QBCore.Shared.Vehicles` before Jim starts.
+- Added a small Himothee vehicle catalogue for direct-source installs and txAdmin replacement with the full vehicle catalogue from pinned Qbox commit `c1c3ca16721cd14eb814cfb95e8f8631690d247d`.
+- Preserved the upstream Qbox licence beside the deployed vehicle catalogue.
+- Added both `qb-inventory/config.lua` and `qb-inventory/config/config.lua` compatibility layouts.
+- Mapped Jim's inventory limit probes to the existing `inventory:weight` and `inventory:slots` convars.
+- Expanded `/himocompat` to fail on an empty shared vehicle catalogue, missing qb-inventory config files, missing Jim vehicle cache, or unresolved Jim inventory weight/slots.
+- Added CI regression gates for both real-server failures.
+- Kept Himothee schema version 5; no new SQL migration is required.
+
 ## 0.5.1 - Stage 1D Compatibility Validation & Drag-and-Drop Hardening
 
 - Expanded `/himocompat` from three framework checks into a server+client runtime acceptance test.
