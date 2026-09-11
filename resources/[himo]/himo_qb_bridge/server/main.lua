@@ -16,7 +16,8 @@ local QBCore = {
             none = { label = 'No Gang', grades = { [0] = { name = 'none', isboss = false } } }
         }
     },
-    ServerCallbacks = {}
+    ServerCallbacks = {},
+    UsableItems = {}
 }
 
 local function isTrue(value) return value == true or value == 1 or value == '1' end
@@ -58,6 +59,16 @@ local function buildGang(source)
         grade = { name = row.grade_name or row.grade_label or tostring(row.grade or 0), level = tonumber(row.grade) or 0 }
     }
 end
+local function buildGroups(source)
+    local groups = {}
+    for _, row in ipairs(exports.himo_core:GetJobs(source) or {}) do
+        groups[row.job_name] = tonumber(row.grade) or 0
+    end
+    for _, row in ipairs(exports.himo_core:GetGroups(source) or {}) do
+        groups[row.group_name] = tonumber(row.grade) or 0
+    end
+    return groups
+end
 local function registerSharedJob(job)
     if not job or not job.name then return end
     local grade = tonumber(job.grade and job.grade.level) or 0
@@ -92,15 +103,20 @@ local function buildPlayerData(source, character)
     qbMetadata.licences = type(metadata.licences) == 'table' and metadata.licences or {}
 
     return {
-        source = source, citizenid = character.citizen_id,
+        source = source,
+        citizenid = character.citizen_id,
         charinfo = {
             firstname = character.first_name or '', lastname = character.last_name or '',
             birthdate = tostring(character.date_of_birth or ''):sub(1, 10),
             nationality = character.nationality or '', gender = genderNumber(character.gender),
-            account = character.citizen_id
+            phone = character.phone_number or '', account = character.citizen_id
         },
         money = { cash = getBalance(character, 'cash'), bank = getBalance(character, 'bank') },
-        metadata = qbMetadata, job = job, gang = gang
+        metadata = qbMetadata,
+        job = job,
+        gang = gang,
+        groups = buildGroups(source),
+        items = type(character.items) == 'table' and character.items or {}
     }
 end
 
@@ -114,6 +130,7 @@ local function wrapPlayer(source)
     local function refresh()
         local latest = exports.himo_core:GetCharacter(source)
         if latest then wrapper.PlayerData = buildPlayerData(source, latest) end
+        return wrapper.PlayerData
     end
 
     wrapper.Functions.GetMoney = function(accountType) return himoPlayer.Functions.GetMoney(accountType) end
@@ -125,10 +142,17 @@ local function wrapPlayer(source)
         local success = himoPlayer.Functions.RemoveMoney(accountType, tonumber(amount) or 0, reason or 'qb-bridge')
         refresh() return success == true
     end
+    wrapper.Functions.SetMoney = function(accountType, amount, reason)
+        local success = himoPlayer.Functions.SetMoney(accountType, tonumber(amount) or 0, reason or 'qb-bridge')
+        refresh() return success == true
+    end
     wrapper.Functions.GetIdentifier = function() return himoPlayer.Functions.GetIdentifier() end
     wrapper.Functions.GetMetaData = function(key) return himoPlayer.Functions.GetMetadata(key) end
     wrapper.Functions.SetMetaData = function(key, value)
         local success = himoPlayer.Functions.SetMetadata(key, value) refresh() return success == true
+    end
+    wrapper.Functions.SetPlayerData = function(key, value)
+        local success = himoPlayer.Functions.SetPlayerData(key, value) refresh() return success == true
     end
     wrapper.Functions.SetJob = function(jobName, grade)
         local success = himoPlayer.Functions.SetJob(jobName, tonumber(grade) or 0) refresh() return success == true
@@ -140,6 +164,7 @@ local function wrapPlayer(source)
         local success = himoPlayer.Functions.SetGroup(groupName, tonumber(grade) or 0) refresh() return success == true
     end
     wrapper.Functions.Save = function() return himoPlayer.Functions.Save() end
+    wrapper.Functions.GetPlayerData = refresh
     return wrapper
 end
 
@@ -178,6 +203,16 @@ end
 QBCore.Functions.CreateCallback = function(name, cb)
     if type(name) == 'string' and type(cb) == 'function' then QBCore.ServerCallbacks[name] = cb end
 end
+QBCore.Functions.CreateUseableItem = function(itemName, cb)
+    if type(itemName) == 'string' and itemName ~= '' and type(cb) == 'function' then
+        QBCore.UsableItems[itemName] = cb
+        return true
+    end
+    return false
+end
+QBCore.Functions.CanUseItem = function(itemName)
+    return QBCore.UsableItems[tostring(itemName or '')]
+end
 
 RegisterNetEvent('QBCore:Server:TriggerCallback', function(name, ...)
     local src = source
@@ -194,12 +229,16 @@ RegisterNetEvent('QBCore:ToggleDuty', function()
     if not job then return end
     local current = isTrue(job.on_duty)
     local ok = player.Functions.SetDuty(not current)
-    if ok then
-        TriggerClientEvent('QBCore:Client:SetDuty', src, not current)
-    end
+    if ok then TriggerClientEvent('QBCore:Client:SetDuty', src, not current) end
 end)
 
 exports('GetCoreObject', function() return QBCore end)
+exports('CreateUseableItem', QBCore.Functions.CreateUseableItem)
+exports('CanUseItem', QBCore.Functions.CanUseItem)
 
-AddEventHandler('himo_core:server:playerLoaded', function(source) TriggerEvent('QBCore:Server:OnPlayerLoaded', source) end)
-AddEventHandler('himo_core:server:characterUnloaded', function(source) TriggerEvent('QBCore:Server:OnPlayerUnload', source) end)
+AddEventHandler('himo_core:server:playerLoaded', function(source)
+    TriggerEvent('QBCore:Server:OnPlayerLoaded', source)
+end)
+AddEventHandler('himo_core:server:characterUnloaded', function(source)
+    TriggerEvent('QBCore:Server:OnPlayerUnload', source)
+end)
