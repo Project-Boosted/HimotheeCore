@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.5.7
+version: 0.5.8
 author: HimotheeGaming
-description: Stage 1D QBCore callback round-trip compatibility fix with behavioral callback validation.
+description: Stage 1D QB CFX function-reference callback fix with bounded compatibility diagnostics.
 
 tasks:
   - action: download_github
