@@ -2,6 +2,17 @@ local function truthy(value)
     return value == true or value == 1 or value == '1'
 end
 
+local function safeProbe(fn)
+    local ok, result, detail = pcall(fn)
+    if not ok then return false, tostring(result) end
+    if result == false then return false, tostring(detail or 'returned false') end
+    return true, tostring(detail or 'ok')
+end
+
+local function boolText(value)
+    return value and 'true' or 'false'
+end
+
 HimoCommands.register('himostatus', {}, function(source, args, raw, respond)
     if source == 0 then return end
     local player = exports['himo_core']:GetPlayer(source)
@@ -36,31 +47,93 @@ end)
 HimoCommands.register('himocompat', {}, function(source, args, raw, respond)
     if source == 0 then return end
 
-    local qbState = GetResourceState('qb-core')
-    local qbxState = GetResourceState('qbx_core')
-    local jimState = GetResourceState('jim_bridge')
+    local checks = {}
+    local details = {}
 
-    local qbOk = pcall(function()
+    checks.qb, details.qb = safeProbe(function()
+        if GetResourceState('qb-core') ~= 'started' then return false, 'not-started' end
         local core = exports['qb-core']:GetCoreObject()
-        assert(type(core) == 'table' and type(core.Functions) == 'table')
+        local player = core and core.Functions and core.Functions.GetPlayer(source)
+        return type(core) == 'table' and type(player) == 'table', 'player-object'
     end)
 
-    local qbxOk = pcall(function()
+    checks.qbx, details.qbx = safeProbe(function()
+        if GetResourceState('qbx_core') ~= 'started' then return false, 'not-started' end
+        local player = exports.qbx_core:GetPlayer(source)
         local jobs = exports.qbx_core:GetJobs()
-        assert(type(jobs) == 'table')
+        return type(player) == 'table' and type(jobs) == 'table', 'player+jobs'
     end)
 
-    local jimOk = false
-    if jimState == 'started' then
-        jimOk = pcall(function()
-            local cache = exports.jim_bridge:GetSharedData()
-            assert(type(cache) == 'table')
-        end)
+    checks.vehicles, details.vehicles = safeProbe(function()
+        if GetResourceState('qbx_vehicles') ~= 'started' then return false, 'not-started' end
+        exports.qbx_vehicles:GetVehicleIdByPlate('__HIMO_COMPAT_HEALTH__')
+        return true, 'plate-api'
+    end)
+
+    checks.oxinv, details.oxinv = safeProbe(function()
+        if GetResourceState('ox_inventory') ~= 'started' then return false, 'not-started' end
+        local inventory = exports.ox_inventory:GetInventory(source)
+        return type(inventory) == 'table', 'player-inventory'
+    end)
+
+    checks.qbinv, details.qbinv = safeProbe(function()
+        if GetResourceState('qb-inventory') ~= 'started' then return false, 'not-started' end
+        return exports['qb-inventory']:Health(source)
+    end)
+
+    checks.jim, details.jim = safeProbe(function()
+        if GetResourceState('jim_bridge') ~= 'started' then return false, 'not-started' end
+        local cache = exports.jim_bridge:GetSharedData()
+        if type(cache) ~= 'table' then return false, 'cache-not-table' end
+        if type(cache.Items) ~= 'table' then return false, 'items-missing' end
+        if type(cache.Jobs) ~= 'table' then return false, 'jobs-missing' end
+        return true, 'shared-cache'
+    end)
+
+    local clientReport
+    local clientOk, clientErr = pcall(function()
+        clientReport = lib.callback.await('himo:compat:clientHealth', source)
+    end)
+    if not clientOk or type(clientReport) ~= 'table' then
+        clientReport = { callback = { ok = false, detail = clientOk and 'invalid-report' or tostring(clientErr) } }
     end
 
-    respond(source, ('compat | qb-core=%s/%s | qbx_core=%s/%s | jim_bridge=%s/%s'):format(
-        qbState, tostring(qbOk), qbxState, tostring(qbxOk), jimState, tostring(jimOk)
+    respond(source, ('compat server | qb=%s | qbx=%s | vehicles=%s | oxinv=%s | qbinv=%s | jim=%s'):format(
+        boolText(checks.qb), boolText(checks.qbx), boolText(checks.vehicles),
+        boolText(checks.oxinv), boolText(checks.qbinv), boolText(checks.jim)
     ))
+
+    local clientNames = { 'qb_core', 'qbx_core', 'ox_inventory', 'ox_target', 'qb_inventory', 'qb_target', 'qb_menu', 'qb_input', 'progressbar' }
+    local clientParts = {}
+    local allClient = true
+    for _, name in ipairs(clientNames) do
+        local result = clientReport[name]
+        local passed = type(result) == 'table' and result.ok == true
+        clientParts[#clientParts + 1] = ('%s=%s'):format(name:gsub('_', ''), boolText(passed))
+        if not passed then allClient = false end
+    end
+    if clientReport.callback and clientReport.callback.ok == false then
+        allClient = false
+        clientParts[#clientParts + 1] = 'callback=false'
+    end
+    respond(source, 'compat client | ' .. table.concat(clientParts, ' | '))
+
+    local failures = {}
+    for name, passed in pairs(checks) do
+        if not passed then failures[#failures + 1] = ('server:%s(%s)'):format(name, details[name] or 'failed') end
+    end
+    for name, result in pairs(clientReport) do
+        if type(result) == 'table' and result.ok == false then
+            failures[#failures + 1] = ('client:%s(%s)'):format(name, result.detail or 'failed')
+        end
+    end
+
+    if #failures == 0 and allClient then
+        respond(source, 'COMPAT TEST PASS | QB + QBX + vehicles + ox_inventory + ox_target + Jim + helper facades')
+    else
+        table.sort(failures)
+        respond(source, 'COMPAT TEST FAIL | ' .. table.concat(failures, ', '), { 255, 90, 90 })
+    end
 end)
 
 HimoCommands.register('himocoretest', { permission = 'staff' }, function(source, args, raw, respond)
