@@ -34,6 +34,7 @@ server_scripts {
     'server/admin.lua',
     'server/compat_callbacks.lua',
     'server/jim_acceptance.lua',
+    'server/project_sloth_acceptance.lua',
     'server/selftest.lua',
     'server/main.lua'
 }
