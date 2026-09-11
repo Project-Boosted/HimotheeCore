@@ -19,18 +19,31 @@ local function tableCount(value)
     return count
 end
 
-CreateThread(function()
-    local deadline = GetGameTimer() + 30000
-    while GetResourceState('qb-core') ~= 'started' and GetGameTimer() < deadline do Wait(250) end
-    if GetResourceState('qb-core') ~= 'started' then return end
+local function requestClientHealth(source)
+    local pending = promise.new()
+    local settled = false
 
-    local ok, core = pcall(function() return exports['qb-core']:GetCoreObject() end)
-    if not ok or not core or not core.Functions or type(core.Functions.CreateCallback) ~= 'function' then return end
-
-    core.Functions.CreateCallback('himo:compat:ping', function(source, cb, value)
-        cb(value == 'ping' and 'pong' or 'invalid')
+    SetTimeout(6000, function()
+        if settled then return end
+        settled = true
+        pending:resolve({ ok = false, detail = 'client-health-timeout' })
     end)
-end)
+
+    local invoked, invokeErr = pcall(function()
+        lib.callback('himo:compat:clientHealth', source, function(report)
+            if settled then return end
+            settled = true
+            pending:resolve({ ok = true, report = report })
+        end)
+    end)
+
+    if not invoked and not settled then
+        settled = true
+        pending:resolve({ ok = false, detail = tostring(invokeErr) })
+    end
+
+    return Citizen.Await(pending)
+end
 
 HimoCommands.register('himostatus', {}, function(source, args, raw, respond)
     if source == 0 then return end
@@ -131,18 +144,22 @@ HimoCommands.register('himocompat', {}, function(source, args, raw, respond)
         )
     end)
 
-    local clientReport
-    local clientOk, clientErr = pcall(function()
-        clientReport = lib.callback.await('himo:compat:clientHealth', source)
-    end)
-    if not clientOk or type(clientReport) ~= 'table' then
-        clientReport = { callback = { ok = false, detail = clientOk and 'invalid-report' or tostring(clientErr) } }
-    end
-
+    -- Show server health immediately. The client probe is deliberately bounded
+    -- below so a broken client callback can never make /himocompat disappear.
     respond(source, ('compat server | qb=%s | qbx=%s | catalog=%s | vehicles=%s | oxinv=%s | qbinv=%s | invcfg=%s | jim=%s'):format(
         boolText(checks.qb), boolText(checks.qbx), boolText(checks.catalog), boolText(checks.vehicles),
         boolText(checks.oxinv), boolText(checks.qbinv), boolText(checks.invcfg), boolText(checks.jim)
     ))
+
+    local clientHealth = requestClientHealth(source)
+    local clientReport
+    if clientHealth.ok and type(clientHealth.report) == 'table' then
+        clientReport = clientHealth.report
+    else
+        clientReport = {
+            callback = { ok = false, detail = clientHealth.detail or 'client-health-failed' }
+        }
+    end
 
     local clientNames = { 'qb_core', 'qbx_core', 'qb_callback', 'ox_inventory', 'ox_target', 'qb_inventory', 'qb_target', 'qb_menu', 'qb_input', 'progressbar' }
     local clientParts = {}
