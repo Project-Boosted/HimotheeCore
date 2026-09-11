@@ -1,0 +1,136 @@
+name: Validate ps-adminmenu Compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ps-adminmenu:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: himothee_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lua and MariaDB client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 mariadb-client
+
+      - name: Validate admin QB contract wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          luac -p 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
+          luac -p 'resources/[himo]/himo_qb_bridge/server/admin_compat.lua'
+          luac -p 'resources/[himo]/himo_qb_bridge/client/helpers.lua'
+          luac -p 'resources/[himo]/qb-core/client/main.lua'
+          luac -p 'resources/[himo]/himo_core/server/identifiers.lua'
+          luac -p 'resources/[himo]/himo_core/server/project_sloth_acceptance.lua'
+
+          grep -Fq 'QBCore.Functions.IsOptin' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
+          grep -Fq 'QBCore.Functions.ToggleOptin' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
+          grep -Fq 'QBCore.Functions.AddPermission' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
+          grep -Fq "mod = 'staff'" 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
+          grep -Fq 'GetPlayerIdentifierByType' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
+          grep -Fq 'player.PlayerData.license' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
+          grep -Fq 'QBCore.Shared.Trim' 'resources/[himo]/himo_qb_bridge/server/helpers.lua'
+
+          grep -Fq 'QBCore.Functions.GetVehicleProperties' 'resources/[himo]/himo_qb_bridge/client/helpers.lua'
+          grep -Fq 'QBCore.Functions.SetVehicleProperties' 'resources/[himo]/himo_qb_bridge/client/helpers.lua'
+          grep -Fq 'sharedMirror.Round' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'sharedMirror.Trim' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'data.name = data.name or GetPlayerName' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'GetVehicleProperties' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'SetVehicleProperties' 'resources/[himo]/qb-core/client/main.lua'
+
+          grep -Fq "'server/admin_compat.lua'" 'resources/[himo]/himo_qb_bridge/fxmanifest.lua'
+          grep -Fq 'EnsureAdminCompatibility' 'resources/[himo]/himo_qb_bridge/server/admin_compat.lua'
+          grep -Fq 'PS admin bridge | contract=' 'resources/[himo]/himo_core/server/project_sloth_acceptance.lua'
+          grep -Fq 'FROM `bans`' 'resources/[himo]/himo_core/server/identifiers.lua'
+
+      - name: Validate admin persistence round trip
+        shell: bash
+        env:
+          MYSQL_PWD: root
+        run: |
+          set -euo pipefail
+          for sql in \
+            database/001_schema.sql \
+            database/002_seed.sql \
+            database/003_stage1b_lifecycle.sql \
+            database/004_stage1c_core_services.sql \
+            database/005_stage1c_account_roles.sql \
+            database/006_stage1d_compatibility.sql \
+            database/007_stage1e_project_sloth.sql \
+            database/vendor/ps_adminmenu.sql; do
+            mariadb -h 127.0.0.1 -uroot himothee_ci < "$sql"
+          done
+
+          # Vendor compatibility must be safe on restart/redeploy.
+          mariadb -h 127.0.0.1 -uroot himothee_ci < database/vendor/ps_adminmenu.sql
+
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e \
+            "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('bans','player_warns')" | grep -qx '2'
+
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e \
+            "SELECT EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='player_vehicles' AND COLUMN_NAME='id'" | grep -Fqx 'auto_increment'
+
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e \
+            "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME IN ('trg_himo_player_vehicles_insert_writeback','trg_himo_player_vehicles_writeback')" | grep -qx '2'
+
+          mariadb -h 127.0.0.1 -uroot himothee_ci <<'SQL'
+          INSERT INTO himo_accounts (id, display_name, last_seen_name)
+          VALUES (910001, 'Admin CI', 'Admin CI');
+
+          INSERT INTO himo_identifiers (account_id, provider, identifier)
+          VALUES (910001, 'license', 'license:adminci');
+
+          INSERT INTO himo_characters
+              (id, account_id, citizen_id, slot, first_name, last_name, inventory)
+          VALUES
+              (910001, 910001, 'ADMINMENUCI', 1, 'Admin', 'Tester', '[]');
+
+          -- Match ps-adminmenu Give Car: no id supplied.
+          INSERT INTO player_vehicles
+              (license, citizenid, vehicle, hash, mods, plate, garage, state)
+          VALUES
+              ('license:adminci', 'ADMINMENUCI', 'adder', 'adder', '{}', 'ADM91001', 'Alta Garage', 1);
+
+          UPDATE player_vehicles
+          SET plate = 'ADM91002', state = 2, mdt_vehicle_points = 3
+          WHERE citizenid = 'ADMINMENUCI';
+
+          INSERT INTO bans (name, license, reason, expire, bannedby)
+          VALUES ('Admin Tester', 'license:adminci', 'CI ban', UNIX_TIMESTAMP() + 3600, 'CI');
+
+          INSERT INTO player_warns (senderIdentifier, targetIdentifier, reason, warnId)
+          VALUES ('license:staffci', 'license:adminci', 'CI warning', 'WARN-CI');
+          SQL
+
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e \
+            "SELECT COUNT(*) FROM himo_vehicles WHERE owner_character_id=910001 AND plate='ADM91002' AND state='impound' AND mdt_vehicle_points=3" | grep -qx '1'
+
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e \
+            "SELECT COUNT(*) FROM bans WHERE license='license:adminci' AND reason='CI ban'" | grep -qx '1'
+
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e \
+            "SELECT COUNT(*) FROM player_warns WHERE targetIdentifier='license:adminci' AND warnId='WARN-CI'" | grep -qx '1'
