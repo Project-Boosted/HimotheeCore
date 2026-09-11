@@ -20,3 +20,11 @@ end)
 exports('GetPlayerByCitizenId', function(citizenId)
     return core().Functions.GetPlayerByCitizenId(citizenId)
 end)
+
+exports('CreateUseableItem', function(itemName, cb)
+    return core().Functions.CreateUseableItem(itemName, cb)
+end)
+
+exports('CanUseItem', function(itemName)
+    return core().Functions.CanUseItem(itemName)
+end)
