@@ -102,8 +102,52 @@ CREATE TABLE IF NOT EXISTS `player_vehicles` (
     KEY `idx_player_vehicles_citizenid` (`citizenid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Seed compatibility rows for every existing character.
-INSERT INTO `players` (`citizenid`, `cid`, `license`, `name`, `money`, `charinfo`, `job`, `gang`, `position`, `metadata`, `inventory`)
+-- Permanent staging tables deliberately separate native reads from compatibility
+-- writes. MariaDB does not allow a trigger to update a table that the statement
+-- which fired the trigger is already reading. The two-phase mirror avoids that
+-- restriction while preserving immediate Project Sloth -> native write-back.
+CREATE TABLE IF NOT EXISTS `himo_ps_players_stage` (
+    `citizenid` VARCHAR(50) NOT NULL,
+    `cid` INT NOT NULL DEFAULT 1,
+    `license` VARCHAR(255) NULL,
+    `name` VARCHAR(255) NULL,
+    `money` LONGTEXT NULL,
+    `charinfo` LONGTEXT NULL,
+    `job` LONGTEXT NULL,
+    `gang` LONGTEXT NULL,
+    `position` LONGTEXT NULL,
+    `metadata` LONGTEXT NULL,
+    `inventory` LONGTEXT NULL,
+    PRIMARY KEY (`citizenid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `himo_ps_player_vehicles_stage` (
+    `id` BIGINT UNSIGNED NOT NULL,
+    `citizenid` VARCHAR(50) NULL,
+    `vehicle` VARCHAR(80) NOT NULL,
+    `hash` VARCHAR(80) NULL,
+    `mods` LONGTEXT NULL,
+    `plate` VARCHAR(16) NOT NULL,
+    `garage` VARCHAR(80) NULL,
+    `fuel` INT NOT NULL DEFAULT 100,
+    `engine` FLOAT NOT NULL DEFAULT 1000,
+    `body` FLOAT NOT NULL DEFAULT 1000,
+    `state` INT NOT NULL DEFAULT 1,
+    `glovebox` LONGTEXT NULL,
+    `trunk` LONGTEXT NULL,
+    `mdt_vehicle_information` TEXT NULL,
+    `mdt_vehicle_points` INT NOT NULL DEFAULT 0,
+    `mdt_vehicle_status` VARCHAR(500) NOT NULL DEFAULT 'valid',
+    `mdt_vehicle_stolen` TINYINT(1) NOT NULL DEFAULT 0,
+    `mdt_vehicle_boloactive` TINYINT(1) NOT NULL DEFAULT 0,
+    `mdt_vehicle_image` VARCHAR(255) NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_himo_ps_vehicle_stage_plate` (`plate`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Stage every existing character from native storage first.
+DELETE FROM `himo_ps_players_stage`;
+INSERT INTO `himo_ps_players_stage` (`citizenid`, `cid`, `license`, `name`, `money`, `charinfo`, `job`, `gang`, `position`, `metadata`, `inventory`)
 SELECT
     c.`citizen_id`,
     c.`slot`,
@@ -140,14 +184,21 @@ SELECT
     c.`inventory`
 FROM `himo_characters` c
 LEFT JOIN `himo_character_metadata` m ON m.`character_id` = c.`id`
-WHERE c.`is_deleted` = 0
+WHERE c.`is_deleted` = 0;
+
+-- Merge only from staging into the QBCore compatibility table. Any existing
+-- write-back trigger therefore no longer shares a native table with this statement.
+INSERT INTO `players` (`citizenid`, `cid`, `license`, `name`, `money`, `charinfo`, `job`, `gang`, `position`, `metadata`, `inventory`)
+SELECT `citizenid`, `cid`, `license`, `name`, `money`, `charinfo`, `job`, `gang`, `position`, `metadata`, `inventory`
+FROM `himo_ps_players_stage`
 ON DUPLICATE KEY UPDATE
     `cid` = VALUES(`cid`), `license` = VALUES(`license`), `name` = VALUES(`name`),
     `money` = VALUES(`money`), `charinfo` = VALUES(`charinfo`), `job` = VALUES(`job`),
     `position` = VALUES(`position`), `metadata` = VALUES(`metadata`), `inventory` = VALUES(`inventory`);
 
--- Seed compatibility rows for every native vehicle.
-INSERT INTO `player_vehicles` (`id`, `citizenid`, `vehicle`, `hash`, `mods`, `plate`, `garage`, `fuel`, `engine`, `body`, `state`, `glovebox`, `trunk`, `mdt_vehicle_information`, `mdt_vehicle_points`, `mdt_vehicle_status`, `mdt_vehicle_stolen`, `mdt_vehicle_boloactive`, `mdt_vehicle_image`)
+-- Stage every native vehicle, then merge into player_vehicles separately.
+DELETE FROM `himo_ps_player_vehicles_stage`;
+INSERT INTO `himo_ps_player_vehicles_stage` (`id`, `citizenid`, `vehicle`, `hash`, `mods`, `plate`, `garage`, `fuel`, `engine`, `body`, `state`, `glovebox`, `trunk`, `mdt_vehicle_information`, `mdt_vehicle_points`, `mdt_vehicle_status`, `mdt_vehicle_stolen`, `mdt_vehicle_boloactive`, `mdt_vehicle_image`)
 SELECT
     v.`id`, c.`citizen_id`, v.`model`, v.`model`, v.`properties`, v.`plate`, v.`garage`,
     ROUND(v.`fuel`), v.`engine_health`, v.`body_health`,
@@ -155,7 +206,11 @@ SELECT
     v.`glovebox`, v.`trunk`, v.`mdt_vehicle_information`, v.`mdt_vehicle_points`,
     v.`mdt_vehicle_status`, v.`mdt_vehicle_stolen`, v.`mdt_vehicle_boloactive`, v.`mdt_vehicle_image`
 FROM `himo_vehicles` v
-LEFT JOIN `himo_characters` c ON c.`id` = v.`owner_character_id`
+LEFT JOIN `himo_characters` c ON c.`id` = v.`owner_character_id`;
+
+INSERT INTO `player_vehicles` (`id`, `citizenid`, `vehicle`, `hash`, `mods`, `plate`, `garage`, `fuel`, `engine`, `body`, `state`, `glovebox`, `trunk`, `mdt_vehicle_information`, `mdt_vehicle_points`, `mdt_vehicle_status`, `mdt_vehicle_stolen`, `mdt_vehicle_boloactive`, `mdt_vehicle_image`)
+SELECT `id`, `citizenid`, `vehicle`, `hash`, `mods`, `plate`, `garage`, `fuel`, `engine`, `body`, `state`, `glovebox`, `trunk`, `mdt_vehicle_information`, `mdt_vehicle_points`, `mdt_vehicle_status`, `mdt_vehicle_stolen`, `mdt_vehicle_boloactive`, `mdt_vehicle_image`
+FROM `himo_ps_player_vehicles_stage`
 ON DUPLICATE KEY UPDATE
     `citizenid` = VALUES(`citizenid`), `vehicle` = VALUES(`vehicle`), `hash` = VALUES(`hash`),
     `mods` = VALUES(`mods`), `garage` = VALUES(`garage`), `fuel` = VALUES(`fuel`),
@@ -198,13 +253,23 @@ AFTER UPDATE ON `player_vehicles`
 FOR EACH ROW
 UPDATE `himo_vehicles`
 SET
+    `state` = CASE WHEN NEW.`state` = 1 THEN 'stored' WHEN NEW.`state` = 2 THEN 'impound' ELSE 'out' END,
     `mdt_vehicle_information` = NEW.`mdt_vehicle_information`,
     `mdt_vehicle_points` = NEW.`mdt_vehicle_points`,
     `mdt_vehicle_status` = NEW.`mdt_vehicle_status`,
     `mdt_vehicle_stolen` = NEW.`mdt_vehicle_stolen`,
     `mdt_vehicle_boloactive` = NEW.`mdt_vehicle_boloactive`,
     `mdt_vehicle_image` = NEW.`mdt_vehicle_image`
-WHERE `plate` = NEW.`plate`;
+WHERE `plate` = NEW.`plate`
+  AND (
+      NOT (NEW.`state` <=> OLD.`state`)
+      OR NOT (NEW.`mdt_vehicle_information` <=> OLD.`mdt_vehicle_information`)
+      OR NOT (NEW.`mdt_vehicle_points` <=> OLD.`mdt_vehicle_points`)
+      OR NOT (NEW.`mdt_vehicle_status` <=> OLD.`mdt_vehicle_status`)
+      OR NOT (NEW.`mdt_vehicle_stolen` <=> OLD.`mdt_vehicle_stolen`)
+      OR NOT (NEW.`mdt_vehicle_boloactive` <=> OLD.`mdt_vehicle_boloactive`)
+      OR NOT (NEW.`mdt_vehicle_image` <=> OLD.`mdt_vehicle_image`)
+  );
 
 INSERT INTO `himo_schema_migrations` (`version`, `name`)
 VALUES (6, '0006_stage1e_project_sloth')
