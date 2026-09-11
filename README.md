@@ -1,6 +1,6 @@
-# HimotheeCore v0.5.1 — Stage 1D Compatibility Validation
+# HimotheeCore v0.5.2 — Stage 1D Jim Compatibility Hotfix
 
-HimotheeCore is a modular, progression-focused FiveM framework. v0.5.1 preserves the real-server-tested character/spawn/Illenium/core lifecycle and hardens the compatibility layer for QBCore, Qbox/QBX and Jim resources.
+HimotheeCore is a modular, progression-focused FiveM framework. v0.5.2 preserves the real-server-tested character/spawn/Illenium/core lifecycle and fixes two runtime contracts found by real Jim Bridge testing: the QBX/QBCore shared vehicle catalogue and qb-inventory configuration discovery.
 
 ## Runtime architecture
 
@@ -23,6 +23,14 @@ FiveM connection
 ```
 
 HimotheeCore remains authoritative for accounts, characters, money, metadata, jobs, groups, permissions and owned vehicles. Compatibility resources translate third-party calls into those native services.
+
+## v0.5.2 fixes
+
+Jim Bridge reads `QBCore.Shared.Vehicles` directly when QBX is present. v0.5.2 now loads a real vehicle definition catalogue before the rest of `qbx_core` starts. The txAdmin recipe replaces the small source fallback with the vehicle catalogue from the pinned Qbox upstream commit and preserves the upstream licence alongside it.
+
+Jim Bridge also probes `qb-inventory/config.lua` and `qb-inventory/config/config.lua` to discover inventory limits. Both files now exist and map directly to HimotheeCore's ox_inventory convars. With the standard configuration they resolve to 120000 maximum weight and 50 slots.
+
+Owned-vehicle persistence remains separate in `qbx_vehicles`; the shared vehicle catalogue is model metadata, not ownership state.
 
 ## Compatibility stack
 
@@ -66,13 +74,13 @@ This allows many resources that declare traditional QBCore dependencies to start
 
 ## QBCore compatibility
 
-`qb-core` exposes a QBCore-shaped API backed by HimotheeCore, including common PlayerData, player lookup, money, metadata, jobs/duty, gangs/groups, callbacks, notifications, usable items and shared catalogs.
+`qb-core` exposes a QBCore-shaped API backed by HimotheeCore, including common PlayerData, player lookup, money, metadata, jobs/duty, gangs/groups, callbacks, notifications, usable items and shared catalogues.
 
 Compatibility is intentionally API-by-API rather than claiming universal support. Scripts that directly query QBCore-specific SQL or undocumented internals may still require a resource-specific adapter.
 
 ## Qbox / QBX compatibility
 
-`qbx_core` exposes the common QBX player/group/money/metadata/usable-item APIs and advertises a compatible 1.23.0 façade version. `qbx_vehicles` exposes owned-vehicle functions against `himo_vehicles` and satisfies the vehicle surface required by ox_inventory's Qbox bridge.
+`qbx_core` exposes the common QBX player/group/money/metadata/usable-item APIs and advertises a compatible 1.23.0 façade version. Its vehicle metadata API now resolves the same populated shared catalogue Jim Bridge reads. `qbx_vehicles` separately exposes owned-vehicle functions against `himo_vehicles` and satisfies the persistence surface required by ox_inventory's Qbox bridge.
 
 ## Jim Bridge
 
@@ -80,7 +88,7 @@ The recipe installs the audited Jim Bridge revision and lets it use the normal Q
 
 ## Inventory persistence
 
-Stage 1D schema 5 adds:
+Stage 1D schema 5 contains:
 
 - `himo_characters.inventory`
 - `himo_vehicles.glovebox`
@@ -102,15 +110,21 @@ Full compatibility test:
 /himocompat
 ```
 
-v0.5.1 `/himocompat` validates both server and client paths: QB, QBX, QBCore callback round-trip, qbx_vehicles, live ox_inventory player inventory, ox_target, qb-inventory, qb-target, qb-menu, qb-input, progressbar and Jim Bridge shared cache.
+v0.5.2 `/himocompat` validates both server and client paths and now explicitly fails if `QBCore.Shared.Vehicles` is empty, if qb-inventory's config contract is missing, or if Jim's cache lacks vehicles, inventory weight or inventory slots.
 
-A healthy deployment ends with:
+A healthy server-side line includes:
 
 ```text
-COMPAT TEST PASS | QB + QBX + callbacks + vehicles + ox_inventory + ox_target + Jim + helper facades
+qb=true | qbx=true | catalog=true | vehicles=true | oxinv=true | qbinv=true | invcfg=true | jim=true
 ```
 
-See `docs/STAGE1D_V051_TEST.md` for the real-server acceptance sequence.
+and the final line is:
+
+```text
+COMPAT TEST PASS | QB + QBX + callbacks + vehicle catalog + vehicle persistence + ox_inventory + ox_target + Jim + helper facades
+```
+
+See `docs/STAGE1D_V052_TEST.md` for the real-server acceptance sequence.
 
 ## txAdmin recipe
 
@@ -118,7 +132,7 @@ Use:
 
     https://raw.githubusercontent.com/Project-Boosted/HimotheeCore/main/recipe.yaml
 
-v0.5.1 requires **Himothee schema version 5**. The migration is additive; existing characters, balances, appearance, jobs, permissions and positions remain intact.
+v0.5.2 still requires **Himothee schema version 5**. There is no new SQL migration in this hotfix; existing characters, balances, inventory, vehicles, appearance, jobs, permissions and positions remain intact.
 
 Migration chain:
 
@@ -137,4 +151,4 @@ Native Himothee roles (`owner`, `admin`, `staff`, `dev`) remain active alongside
 
 "Drag and drop" means a resource only gets Level-A compatibility after it has passed a real runtime test. A script may still need a small adapter when it hardcodes another framework's SQL tables, expects a resource we have not mapped yet, or uses undocumented internals.
 
-GitHub Actions validates Lua syntax, txAdmin recipe wiring, schema 5, compatibility resource presence/start order, helper health contracts and version consistency on every push/PR.
+GitHub Actions validates Lua syntax, txAdmin recipe wiring, schema 5, compatibility resource presence/start order, the Jim vehicle and qb-inventory config contracts, helper health contracts and version consistency on every push/PR.
