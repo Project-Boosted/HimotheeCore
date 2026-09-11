@@ -1,6 +1,8 @@
 -- HimotheeCore Stage 1E - non-destructive ps-housing schema.
 -- Based on the upstream QBOX properties schema, intentionally without the
 -- upstream DROP TABLE so txAdmin redeploys can never erase player housing.
+-- utf8mb4_general_ci matches the Project Sloth compatibility players table,
+-- which is required for the owner_citizenid foreign key in MariaDB.
 
 SET NAMES utf8mb4;
 
@@ -23,4 +25,4 @@ CREATE TABLE IF NOT EXISTS `properties` (
     PRIMARY KEY (`property_id`),
     CONSTRAINT `FK_owner_citizenid` FOREIGN KEY (`owner_citizenid`) REFERENCES `players` (`citizenid`) ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT `UQ_owner_apartment` UNIQUE (`owner_citizenid`, `apartment`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
