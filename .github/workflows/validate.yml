@@ -163,7 +163,7 @@ jobs:
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
           test "$VERSION" = '0.5.9'
-          grep -Fq "version: $VERSION" recipe.yaml
+          grep -Fq "version: \"$VERSION\"" recipe.yaml
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           grep -Fq "HimoConfig.RequiredSchemaVersion = 5" 'resources/[himo]/himo_core/shared/config.lua'
           grep -Fq "HimoConfig.Stage = '1D'" 'resources/[himo]/himo_core/shared/config.lua'
