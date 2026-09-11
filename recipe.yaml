@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.5.6
+version: 0.5.7
 author: HimotheeGaming
-description: Stage 1D authoritative QB/QBX runtime fix for live player data, callbacks and Jim job catalogues.
+description: Stage 1D QBCore callback round-trip compatibility fix with behavioral callback validation.
 
 tasks:
   - action: download_github
