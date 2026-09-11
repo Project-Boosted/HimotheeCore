@@ -23,5 +23,6 @@ files {
 dependencies {
     'ox_lib',
     'himo_core',
+    'himo_qb_bridge',
     'qb-core'
 }
