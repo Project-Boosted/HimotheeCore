@@ -1,4 +1,3 @@
-local clientCallbacks = {}
 local sharedMirror = {
     Items = {}, Vehicles = {}, Weapons = {}, Locations = {}, StarterItems = {}, Jobs = {}, Gangs = {}
 }
@@ -6,7 +5,9 @@ local sharedMirror = {
 local QBCore = {
     Functions = {},
     PlayerData = {},
-    Shared = sharedMirror
+    Shared = sharedMirror,
+    ServerCallbacks = {},
+    ClientCallbacks = {}
 }
 
 local function refreshPlayerData()
@@ -19,14 +20,34 @@ local function refreshPlayerData()
     return QBCore.PlayerData
 end
 
-local function triggerCallback(name, cb, ...)
-    if type(name) ~= 'string' or type(cb) ~= 'function' then return false end
-    clientCallbacks[name] = cb
-    TriggerServerEvent('QBCore:Server:TriggerCallback', name, ...)
+-- Match the current QBCore callback contract. The callback argument is optional;
+-- without one the function awaits and returns the server response.
+function QBCore.Functions.TriggerCallback(name, ...)
+    if type(name) ~= 'string' or name == '' then return nil end
+
+    local args = { ... }
+    local cb
+    if type(args[1]) == 'function' then
+        cb = args[1]
+        table.remove(args, 1)
+    end
+
+    local pending = promise.new()
+    QBCore.ServerCallbacks[name] = {
+        callback = cb,
+        promise = pending
+    }
+
+    TriggerServerEvent('QBCore:Server:TriggerCallback', name, table.unpack(args))
+
+    if cb == nil then
+        Citizen.Await(pending)
+        return pending.value
+    end
+
     return true
 end
 
-QBCore.Functions.TriggerCallback = triggerCallback
 QBCore.Functions.GetPlayerData = function(cb)
     local data = refreshPlayerData()
     if type(cb) == 'function' then cb(data) end
@@ -61,10 +82,12 @@ QBCore.Functions.DeleteVehicle = function(...)
 end
 
 RegisterNetEvent('QBCore:Client:TriggerCallback', function(name, ...)
-    local cb = clientCallbacks[name]
-    if not cb then return end
-    clientCallbacks[name] = nil
-    cb(...)
+    local entry = QBCore.ServerCallbacks[name]
+    if not entry then return end
+
+    entry.promise:resolve(...)
+    if entry.callback then entry.callback(...) end
+    QBCore.ServerCallbacks[name] = nil
 end)
 
 RegisterNetEvent('QBCore:Player:SetPlayerData', function(data)
@@ -95,7 +118,9 @@ end
 
 exports('GetCoreObject', getCoreObject)
 exports('GetPlayerData', function() return QBCore.Functions.GetPlayerData() end)
-exports('TriggerCallback', triggerCallback)
+exports('TriggerCallback', function(name, ...)
+    return QBCore.Functions.TriggerCallback(name, ...)
+end)
 
 exports('GetShared', function(namespace, item)
     local value = QBCore.Shared[namespace]
