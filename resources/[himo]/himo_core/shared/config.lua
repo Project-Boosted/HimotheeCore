@@ -1,10 +1,10 @@
 HimoConfig = HimoConfig or {}
 
 HimoConfig.FrameworkName = 'HimotheeCore'
-HimoConfig.Version = '0.5.5'
+HimoConfig.Version = '0.5.6'
 HimoConfig.RequiredSchemaVersion = 5
 HimoConfig.Stage = '1D'
-HimoConfig.Build = 'qbx-jobs-qbcallback-fix'
+HimoConfig.Build = 'authoritative-qb-qbx-runtime'
 
 HimoConfig.Debug = GetConvarInt('himo:debug', 0) == 1
 HimoConfig.MaxCharacters = math.max(1, GetConvarInt('himo:maxCharacters', 4))
