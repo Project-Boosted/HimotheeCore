@@ -4,7 +4,7 @@ game 'gta5'
 name 'qb-inventory'
 author 'HimotheeGaming'
 description 'qb-inventory compatibility facade backed by ox_inventory'
-version '0.5.5'
+version '0.5.6'
 
 lua54 'yes'
 shared_script '@ox_lib/init.lua'
