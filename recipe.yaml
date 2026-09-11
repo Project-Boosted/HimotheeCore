@@ -138,8 +138,8 @@ tasks:
   - action: replace_string
     mode: literal
     file: ./resources/[ps]/ps_lib/Config.lua
-    search: "GetResourceState('qbx_core')"
-    replace: "GetResourceState('himo_qbx_disabled_for_ps')"
+    search: "qbx_core"
+    replace: "himo_qbx_disabled_for_ps"
 
   - action: replace_string
     mode: literal
@@ -152,6 +152,12 @@ tasks:
     file: ./resources/[ps]/ps_lib/bridge/server.lua
     search: "name = 'qbx_core'"
     replace: "name = 'himo_qbx_disabled_for_ps'"
+
+  - action: replace_string
+    mode: literal
+    file: ./resources/[ps]/ps_lib/bridge/server.lua
+    search: "inventory = data.name"
+    replace: "framework = data.name"
 
   - action: download_github
     src: https://github.com/Project-Sloth/ps-realtor
