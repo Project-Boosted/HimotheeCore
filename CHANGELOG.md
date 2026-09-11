@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.3 - QBX Runtime Contract Fix
+
+- Fixed ox_inventory client error `attempt to index a nil value (local 'groups')` during early character/job loading.
+- `qbx_core` now publishes a full `qbx_core:client:setGroups` snapshot before any incremental `qbx_core:client:onGroupUpdate` event.
+- Added an ox_inventory client-start resync so the QBX groups table is initialised even when resource start order and character events overlap.
+- Fixed `qbx_vehicles` plate lookups passing two SQL parameters to a one-placeholder query.
+- Reworked the local `trim()` helper to return exactly one value instead of leaking `string.gsub`'s replacement-count return value into SQL parameter arrays.
+- Added CI regression guards for both live-server defects and their event/query ordering requirements.
+- Kept Himothee schema version 5; no new SQL migration is required.
+
 ## 0.5.2 - Jim Vehicle & Inventory Contract Fix
 
 - Fixed Jim Bridge reporting an empty `qbx_core` vehicle list by populating `QBCore.Shared.Vehicles` before Jim starts.
