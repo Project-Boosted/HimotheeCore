@@ -1,60 +1,116 @@
-# HimotheeCore v0.4.2 — Stage 1C Core Framework Services
+# HimotheeCore v0.5.1 — Stage 1D Compatibility Validation
 
-HimotheeCore is a modular, progression-focused FiveM framework. v0.4.2 keeps the real-server-tested multicharacter/spawn/Illenium lifecycle and adds a native account-role permission layer alongside txAdmin/ACE permissions.
+HimotheeCore is a modular, progression-focused FiveM framework. v0.5.1 preserves the real-server-tested character/spawn/Illenium/core lifecycle and hardens the compatibility layer for QBCore, Qbox/QBX and Jim resources.
 
-## Current architecture
+## Runtime architecture
 
 ```text
 FiveM connection
-  -> account + duplicate-session guard
-  -> multicharacter preview
-  -> character load/create
-  -> spawn selector
-  -> appearance / Illenium
-  -> world-ready lifecycle
+  -> Himothee account/session
+  -> multicharacter
+  -> spawn
+  -> Illenium appearance
+  -> world-ready
   -> Himothee Player Object
-  -> jobs / groups / metadata / gameplay resources
+  -> compatibility layer
+       -> qb-core
+       -> qbx_core
+       -> qbx_vehicles
+       -> ox_inventory / ox_target
+       -> QB helper facades
+       -> jim_bridge
+  -> gameplay resources
 ```
 
-## Stage 1C services
+HimotheeCore remains authoritative for accounts, characters, money, metadata, jobs, groups, permissions and owned vehicles. Compatibility resources translate third-party calls into those native services.
 
-v0.4.x includes:
+## Compatibility stack
 
-- framework/player statebags and global readiness state
-- persistent metadata with controlled replication
-- expanded Player Object API
-- multi-job, grades, primary job and duty
-- generic groups/gangs with grades and primary membership
-- server/client callback wrappers
-- duplicate-account session protection
-- txAdmin shutdown save-all
-- QB compatibility for common PlayerData/money/metadata/job/group/callback APIs
-- native account roles plus ACE fallback
-- runtime self-tests
-
-## Permissions
-
-v0.4.2 supports two permission authorities:
-
-1. **ACE/txAdmin** — `group.admin` can still receive `himo.admin`, `himo.staff` and `himo.dev` through `permissions.cfg` when txAdmin has a linked provider identifier.
-2. **Himothee account roles** — persistent `owner`, `admin`, `staff` and `dev` roles stored against the Himothee account ID and independent of txAdmin provider linking.
-
-Migration 005 creates and seeds the role/permission tables. Once the database is ready, HimotheeCore performs the initial-owner bootstrap at runtime: if `himo:autoBootstrapOwner 1` is enabled and no owner exists, the earliest existing Himothee account becomes `owner`. On a fresh server this naturally becomes the first account created. Once an owner exists, the bootstrap does nothing.
-
-Owner has wildcard `himo.*`. Admin has `himo.admin`, `himo.staff` and `himo.dev`. Staff and developer roles receive their matching permissions.
-
-Useful commands:
+The txAdmin recipe installs/starts:
 
 ```text
-/himoperms
-/himostage
-/himocoretest
-/himodebugplayer [serverId]
-/himograntrole <serverId> <owner|admin|staff|dev>
-/himorevokerole <serverId> <owner|admin|staff|dev>
+ox_lib
+oxmysql
+ox_target 1.18.1
+
+himo_core
+himo_qb_bridge
+qb-core
+qbx_core
+qbx_vehicles
+
+ox_inventory 2.47.9
+qb-menu
+qb-input
+qb-target
+qb-inventory
+progressbar
+
+jim_bridge
+
+illenium-appearance
+himo_appearance
+himo_spawn
+himo_characters
 ```
 
-`/himoperms` is deliberately non-privileged and reports only the Himothee account ID, role names, and true/false permission results; it does not expose raw FiveM identifiers.
+The exact-name QB helper resources are lightweight facades:
+
+- `qb-menu` -> ox_lib contexts
+- `qb-input` -> ox_lib input dialogs
+- `qb-target` -> ox_target
+- `qb-inventory` -> ox_inventory
+- `progressbar` -> ox_lib progress bars
+
+This allows many resources that declare traditional QBCore dependencies to start without installing duplicate legacy UI/inventory/target stacks.
+
+## QBCore compatibility
+
+`qb-core` exposes a QBCore-shaped API backed by HimotheeCore, including common PlayerData, player lookup, money, metadata, jobs/duty, gangs/groups, callbacks, notifications, usable items and shared catalogs.
+
+Compatibility is intentionally API-by-API rather than claiming universal support. Scripts that directly query QBCore-specific SQL or undocumented internals may still require a resource-specific adapter.
+
+## Qbox / QBX compatibility
+
+`qbx_core` exposes the common QBX player/group/money/metadata/usable-item APIs and advertises a compatible 1.23.0 façade version. `qbx_vehicles` exposes owned-vehicle functions against `himo_vehicles` and satisfies the vehicle surface required by ox_inventory's Qbox bridge.
+
+## Jim Bridge
+
+The recipe installs the audited Jim Bridge revision and lets it use the normal QBX + ox_inventory + ox_target path. Jim's shared item/job/vehicle cache therefore resolves through the same compatibility layer rather than a separate fake framework.
+
+## Inventory persistence
+
+Stage 1D schema 5 adds:
+
+- `himo_characters.inventory`
+- `himo_vehicles.glovebox`
+- `himo_vehicles.trunk`
+
+The txAdmin recipe maps the pinned ox_inventory Qbox database configuration from Qbox's `players` / `player_vehicles` tables onto HimotheeCore's native tables.
+
+## Runtime tests
+
+Core test:
+
+```text
+/himocoretest
+```
+
+Full compatibility test:
+
+```text
+/himocompat
+```
+
+v0.5.1 `/himocompat` validates both server and client paths: QB, QBX, QBCore callback round-trip, qbx_vehicles, live ox_inventory player inventory, ox_target, qb-inventory, qb-target, qb-menu, qb-input, progressbar and Jim Bridge shared cache.
+
+A healthy deployment ends with:
+
+```text
+COMPAT TEST PASS | QB + QBX + callbacks + vehicles + ox_inventory + ox_target + Jim + helper facades
+```
+
+See `docs/STAGE1D_V051_TEST.md` for the real-server acceptance sequence.
 
 ## txAdmin recipe
 
@@ -62,7 +118,7 @@ Use:
 
     https://raw.githubusercontent.com/Project-Boosted/HimotheeCore/main/recipe.yaml
 
-v0.4.2 requires **schema version 4**. Existing characters, balances, appearance, jobs, positions and Stage 1C data are preserved.
+v0.5.1 requires **Himothee schema version 5**. The migration is additive; existing characters, balances, appearance, jobs, permissions and positions remain intact.
 
 Migration chain:
 
@@ -71,31 +127,14 @@ Migration chain:
 3. `003_stage1b_lifecycle.sql`
 4. `004_stage1c_core_services.sql`
 5. `005_stage1c_account_roles.sql`
+6. `006_stage1d_compatibility.sql`
 
-## Resources
+## Permissions
 
-```text
-resources/[himo]/
-  himo_core
-  himo_qb_bridge
-  himo_characters
-  himo_spawn
-  himo_appearance
-```
+Native Himothee roles (`owner`, `admin`, `staff`, `dev`) remain active alongside ACE/txAdmin permissions. `/himoperms` shows the current account's effective role permissions.
 
-## Regular development commands
+## Important compatibility rule
 
-```text
-/himoaccount
-/himowhoami
-/himoplayer
-/himostatus
-/himoduty [on|off]
-/switchcharacter
-/himoappearance
-/himofirstappearance
-```
+"Drag and drop" means a resource only gets Level-A compatibility after it has passed a real runtime test. A script may still need a small adapter when it hardcodes another framework's SQL tables, expects a resource we have not mapped yet, or uses undocumented internals.
 
-See `docs/API.md` for the framework API and `docs/STAGE1C_V040_TEST.md` for the Stage 1C acceptance sequence.
-
-GitHub Actions validates Lua syntax, recipe wiring, resource order, native permission services and the full MariaDB migration chain through schema 4 on every push/PR.
+GitHub Actions validates Lua syntax, txAdmin recipe wiring, schema 5, compatibility resource presence/start order, helper health contracts and version consistency on every push/PR.
