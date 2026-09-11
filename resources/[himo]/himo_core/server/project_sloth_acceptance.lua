@@ -12,6 +12,13 @@ local function tableExists(name)
     return tonumber(count) == 1
 end
 
+local function isCallable(value)
+    if type(value) == 'function' then return true end
+    return type(value) == 'table'
+        and type(value.__cfx_functionReference) == 'string'
+        and value.__cfx_functionReference ~= ''
+end
+
 HimoCommands.register('himopstest', {}, function(source, args, raw, respond)
     if source == 0 then return end
 
@@ -65,7 +72,31 @@ HimoCommands.register('himopstest', {}, function(source, args, raw, respond)
     local jobsOk = #jobs == 3
     respond(source, ('PS jobs | police/ambulance/realestate=%s (%d/3)'):format(tostring(jobsOk), #jobs))
 
-    if resourcesOk and databaseOk and mirrorOk and jobsOk then
+    local provisionOk, provisionResult = pcall(function()
+        return exports.himo_qb_bridge:EnsureAdminCompatibility()
+    end)
+    provisionOk = provisionOk and provisionResult == true
+
+    local adminContractOk = false
+    local coreOk, qb = pcall(function()
+        return exports['qb-core']:GetCoreObject()
+    end)
+    if coreOk and type(qb) == 'table' and type(qb.Functions) == 'table' and type(qb.Shared) == 'table' then
+        adminContractOk = isCallable(qb.Functions.IsOptin)
+            and isCallable(qb.Functions.HasPermission)
+            and isCallable(qb.Functions.GetIdentifier)
+            and isCallable(qb.Functions.AddPermission)
+            and isCallable(qb.Shared.Trim)
+    end
+
+    local bansOk = tableExists('bans')
+    local warnsOk = tableExists('player_warns')
+    local adminBridgeOk = provisionOk and adminContractOk and bansOk and warnsOk
+    respond(source, ('PS admin bridge | contract=%s bans=%s warns=%s'):format(
+        tostring(adminContractOk), tostring(bansOk), tostring(warnsOk)
+    ))
+
+    if resourcesOk and databaseOk and mirrorOk and jobsOk and adminBridgeOk then
         respond(source, 'PROJECT SLOTH TEST PASS | housing + realtor + dispatch + MDT + admin menu loaded on HimotheeCore')
     else
         respond(source, 'PROJECT SLOTH TEST FAIL | inspect the failed resource/database/bridge line above', { 255, 90, 90 })
