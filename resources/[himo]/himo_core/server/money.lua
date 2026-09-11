@@ -99,8 +99,3 @@ function HimoMoney.set(characterId, accountType, amount, reason, reference)
 
     return success == true
 end
-
-exports('GetBalance', HimoMoney.getBalance)
-exports('AddMoney', HimoMoney.add)
-exports('RemoveMoney', HimoMoney.remove)
-exports('SetMoney', HimoMoney.set)
