@@ -14,8 +14,14 @@ local function decode(value, fallback)
     return ok and type(result) == 'table' and result or (fallback or {})
 end
 
-local syncCharactersSql = [[
-INSERT INTO players (citizenid, cid, license, name, money, charinfo, job, gang, position, metadata, inventory)
+-- Native reads and compatibility writes are intentionally split into separate
+-- statements through permanent staging tables. MariaDB rejects a trigger that
+-- updates a table already being read by the statement which fired that trigger.
+-- Staging keeps Project Sloth write-back triggers enabled without recursion.
+local clearCharactersStageSql = 'DELETE FROM himo_ps_players_stage'
+
+local fillCharactersStageSql = [[
+INSERT INTO himo_ps_players_stage (citizenid, cid, license, name, money, charinfo, job, gang, position, metadata, inventory)
 SELECT
     c.citizen_id,
     c.slot,
@@ -53,14 +59,22 @@ SELECT
 FROM himo_characters c
 LEFT JOIN himo_character_metadata m ON m.character_id = c.id
 WHERE c.is_deleted = 0
+]]
+
+local mergeCharactersSql = [[
+INSERT INTO players (citizenid, cid, license, name, money, charinfo, job, gang, position, metadata, inventory)
+SELECT citizenid, cid, license, name, money, charinfo, job, gang, position, metadata, inventory
+FROM himo_ps_players_stage
 ON DUPLICATE KEY UPDATE
     cid = VALUES(cid), license = VALUES(license), name = VALUES(name),
     money = VALUES(money), charinfo = VALUES(charinfo), job = VALUES(job),
     position = VALUES(position), metadata = VALUES(metadata), inventory = VALUES(inventory)
 ]]
 
-local syncVehiclesSql = [[
-INSERT INTO player_vehicles
+local clearVehiclesStageSql = 'DELETE FROM himo_ps_player_vehicles_stage'
+
+local fillVehiclesStageSql = [[
+INSERT INTO himo_ps_player_vehicles_stage
     (id, citizenid, vehicle, hash, mods, plate, garage, fuel, engine, body, state, glovebox, trunk,
      mdt_vehicle_information, mdt_vehicle_points, mdt_vehicle_status, mdt_vehicle_stolen,
      mdt_vehicle_boloactive, mdt_vehicle_image)
@@ -72,6 +86,18 @@ SELECT
     v.mdt_vehicle_status, v.mdt_vehicle_stolen, v.mdt_vehicle_boloactive, v.mdt_vehicle_image
 FROM himo_vehicles v
 LEFT JOIN himo_characters c ON c.id = v.owner_character_id
+]]
+
+local mergeVehiclesSql = [[
+INSERT INTO player_vehicles
+    (id, citizenid, vehicle, hash, mods, plate, garage, fuel, engine, body, state, glovebox, trunk,
+     mdt_vehicle_information, mdt_vehicle_points, mdt_vehicle_status, mdt_vehicle_stolen,
+     mdt_vehicle_boloactive, mdt_vehicle_image)
+SELECT
+    id, citizenid, vehicle, hash, mods, plate, garage, fuel, engine, body, state, glovebox, trunk,
+    mdt_vehicle_information, mdt_vehicle_points, mdt_vehicle_status, mdt_vehicle_stolen,
+    mdt_vehicle_boloactive, mdt_vehicle_image
+FROM himo_ps_player_vehicles_stage
 ON DUPLICATE KEY UPDATE
     citizenid = VALUES(citizenid), vehicle = VALUES(vehicle), hash = VALUES(hash), mods = VALUES(mods),
     garage = VALUES(garage), fuel = VALUES(fuel), engine = VALUES(engine), body = VALUES(body), state = VALUES(state),
@@ -84,20 +110,43 @@ ON DUPLICATE KEY UPDATE
     mdt_vehicle_image = VALUES(mdt_vehicle_image)
 ]]
 
-local function syncProjectSlothMirrors()
-    local okCharacters, errCharacters = pcall(MySQL.query.await, syncCharactersSql)
-    if not okCharacters then
-        print(('[himo_qb_bridge] Project Sloth players mirror sync failed: %s'):format(tostring(errCharacters)))
+local syncInProgress = false
+
+local function runMirrorQuery(label, sql)
+    local ok, result = pcall(MySQL.query.await, sql)
+    if not ok then
+        print(('[himo_qb_bridge] Project Sloth %s failed: %s'):format(label, tostring(result)))
         return false
     end
-
-    local okVehicles, errVehicles = pcall(MySQL.query.await, syncVehiclesSql)
-    if not okVehicles then
-        print(('[himo_qb_bridge] Project Sloth player_vehicles mirror sync failed: %s'):format(tostring(errVehicles)))
-        return false
-    end
-
     return true
+end
+
+local function syncProjectSlothMirrors()
+    if syncInProgress then
+        return true
+    end
+
+    syncInProgress = true
+
+    local steps = {
+        { 'players staging reset', clearCharactersStageSql },
+        { 'players native staging', fillCharactersStageSql },
+        { 'players mirror merge', mergeCharactersSql },
+        { 'player_vehicles staging reset', clearVehiclesStageSql },
+        { 'player_vehicles native staging', fillVehiclesStageSql },
+        { 'player_vehicles mirror merge', mergeVehiclesSql },
+    }
+
+    local success = true
+    for i = 1, #steps do
+        if not runMirrorQuery(steps[i][1], steps[i][2]) then
+            success = false
+            break
+        end
+    end
+
+    syncInProgress = false
+    return success
 end
 
 local function getOfflinePlayer(citizenId)
