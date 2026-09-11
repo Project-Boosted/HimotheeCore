@@ -90,6 +90,9 @@ tasks:
     src: ./tmp/himotheecore/resources/[himo]
     dest: ./resources/[himo]
 
+  - action: remove_path
+    path: ./resources/[himo]/qbx_core/shared/vehicles.lua
+
   - action: move_path
     src: ./tmp/qbox-core-upstream/shared/vehicles.lua
     dest: ./resources/[himo]/qbx_core/shared/vehicles.lua
