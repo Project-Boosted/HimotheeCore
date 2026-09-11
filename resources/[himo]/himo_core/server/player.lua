@@ -1,11 +1,26 @@
 HimoPlayerObjects = HimoPlayerObjects or {}
 
+local immutablePlayerFields = {
+    id = true,
+    account_id = true,
+    citizen_id = true,
+    metadata = true,
+    balances = true,
+    jobs = true,
+    groups = true
+}
+
 local function updateCachedBalance(character, accountType, balance)
     character.balances = character.balances or {}
     for _, entry in ipairs(character.balances) do
         if entry.account_type == accountType then entry.balance = balance return end
     end
     character.balances[#character.balances + 1] = { account_type = accountType, balance = balance }
+end
+
+local function notifyMoney(source, accountType, balance, transactionType, amount, reason)
+    TriggerClientEvent('himo_core:client:moneyChanged', source, accountType, balance, transactionType, amount, reason)
+    TriggerEvent('himo_core:server:moneyChanged', source, accountType, balance, transactionType, amount, reason)
 end
 
 local function buildPlayerObject(source, character)
@@ -26,27 +41,58 @@ local function buildPlayerObject(source, character)
         local data = HimoPlayers[source]
         return data and HimoMoney.getBalance(data.id, accountType) or nil
     end
+
     function player.Functions.AddMoney(accountType, amount, reason, reference)
         local data = HimoPlayers[source]
         if not data then return false end
+        amount = math.floor(tonumber(amount) or 0)
         local success = HimoMoney.add(data.id, accountType, amount, reason, reference)
         if not success then return false end
         local balance = HimoMoney.getBalance(data.id, accountType)
         updateCachedBalance(data, accountType, balance)
-        TriggerClientEvent('himo_core:client:moneyChanged', source, accountType, balance, 'credit', amount, reason)
-        TriggerEvent('himo_core:server:moneyChanged', source, accountType, balance, 'credit', amount, reason)
+        notifyMoney(source, accountType, balance, 'credit', amount, reason)
         return true, balance
     end
+
     function player.Functions.RemoveMoney(accountType, amount, reason, reference)
         local data = HimoPlayers[source]
         if not data then return false end
+        amount = math.floor(tonumber(amount) or 0)
         local success = HimoMoney.remove(data.id, accountType, amount, reason, reference)
         if not success then return false end
         local balance = HimoMoney.getBalance(data.id, accountType)
         updateCachedBalance(data, accountType, balance)
-        TriggerClientEvent('himo_core:client:moneyChanged', source, accountType, balance, 'debit', amount, reason)
-        TriggerEvent('himo_core:server:moneyChanged', source, accountType, balance, 'debit', amount, reason)
+        notifyMoney(source, accountType, balance, 'debit', amount, reason)
         return true, balance
+    end
+
+    function player.Functions.SetMoney(accountType, amount, reason, reference)
+        local data = HimoPlayers[source]
+        if not data then return false end
+        amount = math.floor(tonumber(amount) or -1)
+        if amount < 0 then return false end
+
+        local previous = HimoMoney.getBalance(data.id, accountType)
+        if previous == nil then return false end
+        local success = HimoMoney.set(data.id, accountType, amount, reason, reference)
+        if not success then return false end
+
+        updateCachedBalance(data, accountType, amount)
+        notifyMoney(source, accountType, amount, 'set', amount - previous, reason)
+        return true, amount
+    end
+
+    -- Compatibility-only volatile PlayerData fields (for example ox_inventory's
+    -- `items`). Authoritative identity/jobs/groups/money/metadata cannot be
+    -- overwritten through this generic setter.
+    function player.Functions.SetPlayerData(key, value)
+        local data = HimoPlayers[source]
+        key = tostring(key or '')
+        if not data or key == '' or immutablePlayerFields[key] then return false end
+        data[key] = value
+        TriggerClientEvent('himo_core:client:playerDataFieldChanged', source, key, value)
+        TriggerEvent('himo_core:server:playerDataFieldChanged', source, key, value)
+        return true
     end
 
     function player.Functions.GetMetadata(key, default) return HimoMetadata.get(source, key, default) end
