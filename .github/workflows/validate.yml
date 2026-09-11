@@ -98,7 +98,9 @@ jobs:
           grep -Fq "replace: \"playerTable = 'himo_characters'\"" recipe.yaml
           grep -Fq "replace: \"playerColumn = 'citizen_id'\"" recipe.yaml
           grep -Fq "replace: \"vehicleTable = 'himo_vehicles'\"" recipe.yaml
-          grep -Fq "GetResourceState('himo_qbx_disabled_for_ps')" recipe.yaml
+          grep -Fq 'search: "qbx_core"' recipe.yaml
+          grep -Fq 'replace: "himo_qbx_disabled_for_ps"' recipe.yaml
+          grep -Fq 'replace: "framework = data.name"' recipe.yaml
           grep -Fq 'Config.Inventory = \"ox_inventory\"' recipe.yaml
           grep -Fq 'Config.Target = \"ox_target\"' recipe.yaml
           grep -Fq 'Config.Fuel = \"ox_fuel\"' recipe.yaml
