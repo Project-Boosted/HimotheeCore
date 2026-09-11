@@ -169,45 +169,42 @@ ON DUPLICATE KEY UPDATE
     `mdt_vehicle_image` = VALUES(`mdt_vehicle_image`);
 
 -- MDT changes to compatibility character metadata/inventory are written back to
--- native HimotheeCore storage immediately. Native -> compatibility refresh is
--- handled by himo_qb_bridge so these triggers are deliberately one-way.
+-- native HimotheeCore storage immediately. These are deliberately single-statement
+-- triggers: txAdmin sends SQL through the MySQL protocol, where DELIMITER is not
+-- valid SQL and BEGIN/END trigger bodies cannot be passed as CLI-style scripts.
 DROP TRIGGER IF EXISTS `trg_himo_players_writeback`;
-DELIMITER //
-CREATE TRIGGER `trg_himo_players_writeback`
+DROP TRIGGER IF EXISTS `trg_himo_players_metadata_writeback`;
+DROP TRIGGER IF EXISTS `trg_himo_players_inventory_writeback`;
+CREATE TRIGGER `trg_himo_players_metadata_writeback`
 AFTER UPDATE ON `players`
 FOR EACH ROW
-BEGIN
-    IF NOT (NEW.`metadata` <=> OLD.`metadata`) THEN
-        UPDATE `himo_character_metadata` m
-        JOIN `himo_characters` c ON c.`id` = m.`character_id`
-        SET m.`metadata` = NEW.`metadata`
-        WHERE c.`citizen_id` = NEW.`citizenid`;
-    END IF;
-    IF NOT (NEW.`inventory` <=> OLD.`inventory`) THEN
-        UPDATE `himo_characters`
-        SET `inventory` = NEW.`inventory`
-        WHERE `citizen_id` = NEW.`citizenid`;
-    END IF;
-END//
-DELIMITER ;
+UPDATE `himo_character_metadata` m
+JOIN `himo_characters` c ON c.`id` = m.`character_id`
+SET m.`metadata` = NEW.`metadata`
+WHERE c.`citizen_id` = NEW.`citizenid`
+  AND NOT (NEW.`metadata` <=> OLD.`metadata`);
+
+CREATE TRIGGER `trg_himo_players_inventory_writeback`
+AFTER UPDATE ON `players`
+FOR EACH ROW
+UPDATE `himo_characters`
+SET `inventory` = NEW.`inventory`
+WHERE `citizen_id` = NEW.`citizenid`
+  AND NOT (NEW.`inventory` <=> OLD.`inventory`);
 
 DROP TRIGGER IF EXISTS `trg_himo_player_vehicles_writeback`;
-DELIMITER //
 CREATE TRIGGER `trg_himo_player_vehicles_writeback`
 AFTER UPDATE ON `player_vehicles`
 FOR EACH ROW
-BEGIN
-    UPDATE `himo_vehicles`
-    SET
-        `mdt_vehicle_information` = NEW.`mdt_vehicle_information`,
-        `mdt_vehicle_points` = NEW.`mdt_vehicle_points`,
-        `mdt_vehicle_status` = NEW.`mdt_vehicle_status`,
-        `mdt_vehicle_stolen` = NEW.`mdt_vehicle_stolen`,
-        `mdt_vehicle_boloactive` = NEW.`mdt_vehicle_boloactive`,
-        `mdt_vehicle_image` = NEW.`mdt_vehicle_image`
-    WHERE `plate` = NEW.`plate`;
-END//
-DELIMITER ;
+UPDATE `himo_vehicles`
+SET
+    `mdt_vehicle_information` = NEW.`mdt_vehicle_information`,
+    `mdt_vehicle_points` = NEW.`mdt_vehicle_points`,
+    `mdt_vehicle_status` = NEW.`mdt_vehicle_status`,
+    `mdt_vehicle_stolen` = NEW.`mdt_vehicle_stolen`,
+    `mdt_vehicle_boloactive` = NEW.`mdt_vehicle_boloactive`,
+    `mdt_vehicle_image` = NEW.`mdt_vehicle_image`
+WHERE `plate` = NEW.`plate`;
 
 INSERT INTO `himo_schema_migrations` (`version`, `name`)
 VALUES (6, '0006_stage1e_project_sloth')
