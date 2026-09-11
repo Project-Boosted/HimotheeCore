@@ -4,11 +4,7 @@ local clientCallbacks = {}
 local QBCore = {
     Functions = {},
     Shared = {
-        Items = {},
-        Vehicles = {},
-        Weapons = {},
-        Locations = {},
-        StarterItems = {},
+        Items = {}, Vehicles = {}, Weapons = {}, Locations = {}, StarterItems = {},
         Jobs = {
             unemployed = {
                 label = 'Unemployed', type = 'none', defaultDuty = false,
@@ -62,6 +58,16 @@ local function buildGang()
         grade = { name = row.grade_name or row.grade_label or tostring(row.grade or 0), level = tonumber(row.grade) or 0 }
     }
 end
+local function buildGroups(character)
+    local result = {}
+    for _, row in ipairs(exports.himo_core:GetJobs() or character.jobs or {}) do
+        result[row.job_name] = tonumber(row.grade) or 0
+    end
+    for _, row in ipairs(exports.himo_core:GetGroups() or character.groups or {}) do
+        result[row.group_name] = tonumber(row.grade) or 0
+    end
+    return result
+end
 local function registerSharedJob(job)
     if not job or not job.name then return end
     local grade = tonumber(job.grade and job.grade.level) or 0
@@ -85,12 +91,13 @@ local function buildPlayerData()
     local character = exports.himo_core:GetCharacter()
     local base = {
         citizenid = '', source = GetPlayerServerId(PlayerId()),
-        charinfo = { firstname = '', lastname = '', birthdate = '', nationality = '', gender = 0 },
+        charinfo = { firstname = '', lastname = '', birthdate = '', nationality = '', gender = 0, phone = '' },
         money = { cash = 0, bank = 0 },
         metadata = { tracker = false, isdead = false, inlaststand = false, ishandcuffed = false, armor = 0, licences = {} },
         job = { name = 'unemployed', label = 'Unemployed', type = 'none', onduty = false,
             payment = 0, isboss = false, grade = { name = 'Unemployed', level = 0 } },
-        gang = { name = 'none', label = 'No Gang', isboss = false, grade = { name = 'none', level = 0 } }
+        gang = { name = 'none', label = 'No Gang', isboss = false, grade = { name = 'none', level = 0 } },
+        groups = {}, items = {}
     }
 
     if not character then
@@ -105,7 +112,8 @@ local function buildPlayerData()
     base.charinfo = {
         firstname = character.first_name or '', lastname = character.last_name or '',
         birthdate = tostring(character.date_of_birth or ''):sub(1, 10),
-        nationality = character.nationality or '', gender = genderNumber(character.gender)
+        nationality = character.nationality or '', gender = genderNumber(character.gender),
+        phone = character.phone_number or ''
     }
     base.money = { cash = getBalance(character, 'cash'), bank = getBalance(character, 'bank') }
     base.metadata = {}
@@ -117,6 +125,8 @@ local function buildPlayerData()
     base.metadata.armor = tonumber(character.armour or metadata.armor) or 0
     base.metadata.licences = type(metadata.licences) == 'table' and metadata.licences or {}
     base.job, base.gang = job, gang
+    base.groups = buildGroups(character)
+    base.items = type(character.items) == 'table' and character.items or {}
     return base
 end
 
@@ -155,6 +165,10 @@ RegisterNetEvent('himo_core:client:characterLoaded', pushPlayerData)
 RegisterNetEvent('himo_core:client:moneyChanged', pushPlayerData)
 RegisterNetEvent('himo_core:client:metadataSnapshot', pushPlayerData)
 RegisterNetEvent('himo_core:client:metadataChanged', pushPlayerData)
+RegisterNetEvent('himo_core:client:playerDataFieldChanged', function(key, value)
+    if cachedPlayerData then cachedPlayerData[key] = value end
+    pushPlayerData()
+end)
 RegisterNetEvent('himo_core:client:jobsChanged', function()
     local oldJob = cachedPlayerData and cachedPlayerData.job or nil
     local data = pushPlayerData()
