@@ -20,6 +20,15 @@ local QBCore = {
     UsableItems = {}
 }
 
+local function isFunction(value)
+    if type(value) == 'table' then
+        return value.__cfx_functionReference ~= nil and type(value.__cfx_functionReference) == 'string'
+    end
+    return type(value) == 'function'
+end
+
+QBCore.Shared.IsFunction = isFunction
+
 local function isTrue(value) return value == true or value == 1 or value == '1' end
 local function genderNumber(value)
     value = tostring(value or ''):lower()
@@ -201,10 +210,12 @@ QBCore.Functions.HasPermission = function(source, permission)
     return exports.himo_core:HasPermission(source, permission)
 end
 QBCore.Functions.CreateCallback = function(name, cb)
-    if type(name) == 'string' and type(cb) == 'function' then QBCore.ServerCallbacks[name] = cb end
+    if type(name) ~= 'string' or name == '' or not isFunction(cb) then return false end
+    QBCore.ServerCallbacks[name] = cb
+    return true
 end
 QBCore.Functions.CreateUseableItem = function(itemName, cb)
-    if type(itemName) == 'string' and itemName ~= '' and type(cb) == 'function' then
+    if type(itemName) == 'string' and itemName ~= '' and isFunction(cb) then
         QBCore.UsableItems[itemName] = cb
         return true
     end
