@@ -36,6 +36,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lua5.4 mariadb-client python3-pip
           python3 -m pip install --break-system-packages pyyaml
+          sudo npm install --global js-yaml
 
       - name: Validate Lua syntax
         shell: bash
@@ -43,12 +44,13 @@ jobs:
           set -euo pipefail
           while IFS= read -r -d '' file; do
             luac -p "$file"
-          done < <(find resources -type f -name '*.lua' -print0)
+          done < <(find resources deploy -type f -name '*.lua' -print0)
 
       - name: Validate recipe and pinned dependencies
         shell: bash
         run: |
           set -euo pipefail
+          js-yaml recipe.yaml >/dev/null
           python3 - <<'PY'
           import yaml
           with open('recipe.yaml', encoding='utf-8') as handle:
@@ -74,6 +76,10 @@ jobs:
           grep -Fq "replace: \"playerTable = 'himo_characters'\"" recipe.yaml
           grep -Fq "replace: \"playerColumn = 'citizen_id'\"" recipe.yaml
           grep -Fq "replace: \"vehicleTable = 'himo_vehicles'\"" recipe.yaml
+          test -f deploy/jim_items.lua
+          grep -Fq 'src: ./tmp/himotheecore/deploy/jim_items.lua' recipe.yaml
+          grep -Fq 'dest: ./resources/[dependencies]/ox_inventory/data/himo_jim_items.lua' recipe.yaml
+          grep -Fq "lib.load('data.himo_jim_items')" recipe.yaml
           grep -Fq '{{addPrincipalsMaster}}' server.cfg
           grep -Fxq 'exec permissions.cfg' server.cfg
 
@@ -103,18 +109,15 @@ jobs:
           grep -Fq "resourceHealth('jim-mining')" "$CORE/server/jim_acceptance.lua"
           grep -Fq "resourceHealth('jim-recycle')" "$CORE/server/jim_acceptance.lua"
 
-          # v0.5.3 SQL parameter and QBX group-order regressions.
           grep -Fq "local result = tostring(value or '')" 'resources/[himo]/qbx_vehicles/server/main.lua'
           ! grep -Fq "return tostring(value or ''):gsub" 'resources/[himo]/qbx_vehicles/server/main.lua'
           SG=$(grep -nF "TriggerEvent('qbx_core:client:setGroups', snapshot)" 'resources/[himo]/qbx_core/client/main.lua' | head -n1 | cut -d: -f1)
           GU=$(grep -nF "TriggerEvent('qbx_core:client:onGroupUpdate', groupName, groupGrade)" 'resources/[himo]/qbx_core/client/main.lua' | head -n1 | cut -d: -f1)
           test "$SG" -lt "$GU"
 
-          # Vehicle catalogue remains authoritative/dynamic.
           grep -Fq 'local function vehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
           grep -Fq "GetSharedCatalog('Vehicles')" 'resources/[himo]/qbx_core/server/main.lua'
 
-          # CFX function references and bounded diagnostics remain supported.
           grep -Fq 'value.__cfx_functionReference ~= nil' 'resources/[himo]/qb-core/client/main.lua'
           grep -Fq 'sharedMirror.IsFunction = isFunction' 'resources/[himo]/qb-core/client/main.lua'
           grep -Fq 'value.__cfx_functionReference ~= nil' 'resources/[himo]/himo_qb_bridge/server/main.lua'
