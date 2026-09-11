@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.5.8
+version: 0.5.9
 author: HimotheeGaming
-description: Stage 1D QB CFX function-reference callback fix with bounded compatibility diagnostics.
+description: Stage 1D real-world Jim gameplay acceptance with pinned Jim Mining and Jim Recycle resources.
 
 tasks:
   - action: download_github
@@ -72,6 +72,16 @@ tasks:
     src: https://github.com/jimathy/jim_bridge
     ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60
     dest: ./resources/[dependencies]/jim_bridge
+
+  - action: download_github
+    src: https://github.com/jimathy/jim-mining
+    ref: 0a8a29783b78c337b2a5939c3e365dd1fcb44071
+    dest: ./resources/[jim]/jim-mining
+
+  - action: download_github
+    src: https://github.com/jimathy/jim-recycle
+    ref: 118df45c2a8e58ba16913dd0b64fb9164c14faf4
+    dest: ./resources/[jim]/jim-recycle
 
   - action: download_file
     url: https://github.com/iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip
