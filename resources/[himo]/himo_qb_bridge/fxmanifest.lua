@@ -22,7 +22,8 @@ server_scripts {
     'server/helpers.lua',
     'server/shared.lua',
     'server/catalog.lua',
-    'server/project_sloth.lua'
+    'server/project_sloth.lua',
+    'server/admin_compat.lua'
 }
 
 dependencies {
