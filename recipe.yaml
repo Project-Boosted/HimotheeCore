@@ -35,6 +35,17 @@ tasks:
     ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60
     dest: ./resources/[dependencies]/jim_bridge
 
+  # HimotheeCore exposes both QB and Qbox facades. Until the inventory layer is
+  # implemented, force Jim Bridge down its QB path because Jim's QBX getPlayer
+  # path assumes ox_inventory is installed and uses its money item directly.
+  - action: replace_string
+    mode: literal
+    file:
+      - ./resources/[dependencies]/jim_bridge/starter.lua
+      - ./resources/[dependencies]/jim_bridge/frameworkCache.lua
+    search: 'QBXExport = "qbx_core",'
+    replace: 'QBXExport = "himo_qbx_disabled_for_jim",'
+
   - action: download_file
     url: https://github.com/iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip
     path: ./tmp/illenium-appearance.zip
