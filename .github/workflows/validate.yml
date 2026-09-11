@@ -66,6 +66,9 @@ jobs:
           grep -Fq 'overextended/ox_lib/releases/latest/download/ox_lib.zip' recipe.yaml
           grep -Fq 'overextended/oxmysql/releases/latest/download/oxmysql.zip' recipe.yaml
           grep -Fq 'iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip' recipe.yaml
+          grep -Fq 'src: https://github.com/jimathy/jim_bridge' recipe.yaml
+          grep -Fq 'ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60' recipe.yaml
+          grep -Fq 'dest: ./resources/[dependencies]/jim_bridge' recipe.yaml
           grep -Fq 'database/003_stage1b_lifecycle.sql' recipe.yaml
           grep -Fq 'database/004_stage1c_core_services.sql' recipe.yaml
           grep -Fq 'database/005_stage1c_account_roles.sql' recipe.yaml
@@ -101,7 +104,7 @@ jobs:
             exit 1
           fi
 
-      - name: Validate Stage 1C services
+      - name: Validate Stage 1 core services
         shell: bash
         run: |
           set -euo pipefail
@@ -110,6 +113,7 @@ jobs:
           test -f "$CORE/server/metadata.lua"
           test -f "$CORE/server/jobs.lua"
           test -f "$CORE/server/groups.lua"
+          test -f "$CORE/server/compat_catalog.lua"
           test -f "$CORE/server/callbacks.lua"
           test -f "$CORE/client/callbacks.lua"
           test -f "$CORE/server/sessions.lua"
@@ -120,23 +124,57 @@ jobs:
           grep -Fq "exports('HasPermission'" "$CORE/server/permissions.lua"
           grep -Fq "exports('GetRoles'" "$CORE/server/permissions.lua"
           grep -Fq "exports('GrantRole'" "$CORE/server/permissions.lua"
+          grep -Fq "exports('GetJobDefinitions'" "$CORE/server/compat_catalog.lua"
+          grep -Fq "exports('GetGroupDefinitions'" "$CORE/server/compat_catalog.lua"
           grep -Fq 'function HimoPermissions.ensureOwner()' "$CORE/server/permissions.lua"
-          grep -Fq 'HimoPermissions.ensureOwner()' "$CORE/server/permissions.lua"
           grep -Fq 'HimoPermissions.bootstrapOwner' "$CORE/server/identifiers.lua"
           grep -Fq "HimoCommands.register('himoperms'" "$CORE/server/selftest.lua"
+          grep -Fq "HimoCommands.register('himocompat'" "$CORE/server/selftest.lua"
 
-      - name: Validate Illenium and QB compatibility bridge
+      - name: Validate QBCore Qbox and Jim compatibility layer
         shell: bash
         run: |
           set -euo pipefail
-          BRIDGE='resources/[himo]/himo_qb_bridge/fxmanifest.lua'
-          test -f "$BRIDGE"
-          grep -Fq "provide 'qb-core'" "$BRIDGE"
-          grep -Fq '@ox_lib/init.lua' "$BRIDGE"
-          grep -Fq '__cfx_export_qb-core_' 'resources/[himo]/himo_qb_bridge/client/main.lua'
-          grep -Fq '__cfx_export_qb-core_' 'resources/[himo]/himo_qb_bridge/server/main.lua'
-          grep -Fq 'QBCore:Server:TriggerCallback' 'resources/[himo]/himo_qb_bridge/server/main.lua'
-          grep -Fq 'QBCore:Client:TriggerCallback' 'resources/[himo]/himo_qb_bridge/client/main.lua'
+          INTERNAL='resources/[himo]/himo_qb_bridge'
+          QB='resources/[himo]/qb-core'
+          QBX='resources/[himo]/qbx_core'
+
+          test -f "$QB/fxmanifest.lua"
+          test -f "$QB/client/main.lua"
+          test -f "$QB/server/main.lua"
+          test -f "$QB/shared/locale.lua"
+          grep -Fq "name 'qb-core'" "$QB/fxmanifest.lua"
+          grep -Fq "exports('GetCoreObject'" "$QB/server/main.lua"
+          grep -Fq "exports('GetCoreObject'" "$QB/client/main.lua"
+          grep -Fq 'Locale:new' "$QB/shared/locale.lua"
+
+          test -f "$QBX/fxmanifest.lua"
+          test -f "$QBX/client/main.lua"
+          test -f "$QBX/server/main.lua"
+          test -f "$QBX/modules/playerdata.lua"
+          grep -Fq "name 'qbx_core'" "$QBX/fxmanifest.lua"
+          grep -Fq "exports('GetPlayerData'" "$QBX/client/main.lua"
+          grep -Fq "exports('GetJobs'" "$QBX/server/main.lua"
+          grep -Fq "exports('GetGangs'" "$QBX/server/main.lua"
+          grep -Fq "exports('GetMetadata'" "$QBX/server/main.lua"
+          grep -Fq "exports('HasGroup'" "$QBX/server/main.lua"
+          grep -Fq 'QBX.PlayerData' "$QBX/modules/playerdata.lua"
+
+          test -f "$INTERNAL/server/catalog.lua"
+          test -f "$INTERNAL/client/catalog.lua"
+          grep -Fq 'QBCore:Server:TriggerCallback' "$INTERNAL/server/main.lua"
+          grep -Fq 'QBCore:Client:TriggerCallback' "$INTERNAL/client/main.lua"
+          if grep -Fq "provide 'qb-core'" "$INTERNAL/fxmanifest.lua"; then
+            echo 'himo_qb_bridge must not impersonate qb-core now that a real facade exists.' >&2
+            exit 1
+          fi
+
+          grep -Fxq 'ensure qb-core' server.cfg
+          grep -Fxq 'ensure qbx_core' server.cfg
+          grep -Fxq 'ensure jim_bridge' server.cfg
+          grep -Fq 'setr jim_menuScript ox' server.cfg
+          grep -Fq 'setr jim_notifyScript ox' server.cfg
+          grep -Fq 'setr jim_dontUseTarget true' server.cfg
           grep -Fq 'startPlayerCustomization' 'resources/[himo]/himo_appearance/client/auto_creator.lua'
 
       - name: Validate resource start order
@@ -146,7 +184,10 @@ jobs:
           OXLIB_LINE=$(grep -n '^ensure ox_lib$' server.cfg | cut -d: -f1)
           OXMYSQL_LINE=$(grep -n '^ensure oxmysql$' server.cfg | cut -d: -f1)
           CORE_LINE=$(grep -n '^ensure himo_core$' server.cfg | cut -d: -f1)
-          BRIDGE_LINE=$(grep -n '^ensure himo_qb_bridge$' server.cfg | cut -d: -f1)
+          INTERNAL_LINE=$(grep -n '^ensure himo_qb_bridge$' server.cfg | cut -d: -f1)
+          QB_LINE=$(grep -n '^ensure qb-core$' server.cfg | cut -d: -f1)
+          QBX_LINE=$(grep -n '^ensure qbx_core$' server.cfg | cut -d: -f1)
+          JIM_LINE=$(grep -n '^ensure jim_bridge$' server.cfg | cut -d: -f1)
           ILLENIUM_LINE=$(grep -n '^ensure illenium-appearance$' server.cfg | cut -d: -f1)
           APPEARANCE_LINE=$(grep -n '^ensure himo_appearance$' server.cfg | cut -d: -f1)
           SPAWN_LINE=$(grep -n '^ensure himo_spawn$' server.cfg | cut -d: -f1)
@@ -154,8 +195,11 @@ jobs:
 
           test "$OXLIB_LINE" -lt "$CORE_LINE"
           test "$OXMYSQL_LINE" -lt "$CORE_LINE"
-          test "$CORE_LINE" -lt "$BRIDGE_LINE"
-          test "$BRIDGE_LINE" -lt "$ILLENIUM_LINE"
+          test "$CORE_LINE" -lt "$INTERNAL_LINE"
+          test "$INTERNAL_LINE" -lt "$QB_LINE"
+          test "$QB_LINE" -lt "$QBX_LINE"
+          test "$QBX_LINE" -lt "$JIM_LINE"
+          test "$JIM_LINE" -lt "$ILLENIUM_LINE"
           test "$ILLENIUM_LINE" -lt "$APPEARANCE_LINE"
           test "$APPEARANCE_LINE" -lt "$CHAR_LINE"
           test "$SPAWN_LINE" -lt "$CHAR_LINE"
@@ -171,9 +215,12 @@ jobs:
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_characters/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_spawn/fxmanifest.lua'
           grep -Fq "version '$VERSION'" 'resources/[himo]/himo_appearance/fxmanifest.lua'
+          grep -Fq "version '$VERSION'" 'resources/[himo]/qb-core/fxmanifest.lua'
+          grep -Fq "version '1.23.0-himo.1'" 'resources/[himo]/qbx_core/fxmanifest.lua'
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           grep -Fq "HimoConfig.RequiredSchemaVersion = 4" 'resources/[himo]/himo_core/shared/config.lua'
-          echo "Version $VERSION is consistent."
+          grep -Fq "HimoConfig.Stage = '1D'" 'resources/[himo]/himo_core/shared/config.lua'
+          echo "Version $VERSION compatibility layer is consistent."
 
       - name: Validate SQL on MariaDB
         shell: bash
@@ -193,7 +240,6 @@ jobs:
           mariadb -h 127.0.0.1 -uroot himothee_ci -e "INSERT INTO himo_accounts (display_name,last_seen_name,last_seen_at) VALUES ('CI Owner','CI Owner',CURRENT_TIMESTAMP);"
           FIRST_ACCOUNT="$(mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e 'SELECT MIN(id) FROM himo_accounts')"
           mariadb -h 127.0.0.1 -uroot himothee_ci -e "INSERT INTO himo_account_roles (account_id,role_name,granted_by_account_id) VALUES (${FIRST_ACCOUNT},'owner',NULL);"
-          mariadb -h 127.0.0.1 -uroot -e "USE himothee_ci; SELECT MAX(version) AS schema_version FROM himo_schema_migrations; SHOW CREATE TABLE himo_roles; SHOW CREATE TABLE himo_role_permissions; SHOW CREATE TABLE himo_account_roles; SELECT * FROM himo_account_roles;"
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT MAX(version) FROM himo_schema_migrations" | grep -qx '4'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT permission FROM himo_role_permissions WHERE role_name='owner' AND permission='himo.*' LIMIT 1" | grep -qx 'himo.*'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT account_id FROM himo_account_roles WHERE role_name='owner' LIMIT 1" | grep -qx "$FIRST_ACCOUNT"
