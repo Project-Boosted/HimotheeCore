@@ -55,7 +55,7 @@ jobs:
               data = yaml.safe_load(handle)
           assert data.get('$engine') == 3
           assert data.get('$onesync') in ('on', True)
-          assert data.get('version') == '0.5.7'
+          assert data.get('version') == '0.5.8'
           assert isinstance(data.get('tasks'), list) and data['tasks']
           PY
           grep -Fq 'overextended/ox_target/releases/download/v1.18.1/ox_target.zip' recipe.yaml
@@ -91,6 +91,7 @@ jobs:
           test -f "$CORE/client/compat_test.lua"
           test -f "$CORE/server/compat_callbacks.lua"
           grep -Fq "HimoCommands.register('himocompat'" "$CORE/server/selftest.lua"
+          grep -Fq "'server/compat_callbacks.lua'" "$CORE/fxmanifest.lua"
 
           for resource in qb-core qbx_core qbx_vehicles qb-menu qb-input qb-target qb-inventory progressbar; do
             test -f "resources/[himo]/${resource}/fxmanifest.lua"
@@ -135,7 +136,7 @@ jobs:
           grep -Fq "local native = exports.himo_core:GetGroupDefinitions('gang')" 'resources/[himo]/qbx_core/server/main.lua'
           ! grep -Fq "local QB = exports['qb-core']:GetCoreObject()" 'resources/[himo]/qbx_core/server/main.lua'
 
-          # v0.5.7: callback compatibility is behavioral and matches QB callback/promise semantics.
+          # v0.5.7: callback compatibility is behavioral and uses QB callback/promise semantics.
           grep -Fq 'ServerCallbacks = {}' 'resources/[himo]/qb-core/client/main.lua'
           grep -Fq 'function QBCore.Functions.TriggerCallback(name, ...)' 'resources/[himo]/qb-core/client/main.lua'
           grep -Fq 'QBCore.ServerCallbacks[name] = {' 'resources/[himo]/qb-core/client/main.lua'
@@ -148,6 +149,23 @@ jobs:
           grep -Fq "trigger('himo:compat:ping'" "$CORE/client/compat_test.lua"
           grep -Fq "value == 'pong'" "$CORE/client/compat_test.lua"
           ! grep -Fq "type(core.Functions.TriggerCallback) ~= 'function'" "$CORE/client/compat_test.lua"
+
+          # v0.5.8: callbacks crossing exports must recognise CFX function-reference tables.
+          grep -Fq 'value.__cfx_functionReference ~= nil' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'sharedMirror.IsFunction = isFunction' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'if isFunction(args[1]) then' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'value.__cfx_functionReference ~= nil' 'resources/[himo]/himo_qb_bridge/server/main.lua'
+          grep -Fq 'QBCore.Shared.IsFunction = isFunction' 'resources/[himo]/himo_qb_bridge/server/main.lua'
+          grep -Fq 'not isFunction(cb)' 'resources/[himo]/himo_qb_bridge/server/main.lua'
+          grep -Fq 'isFunction(cb)' 'resources/[himo]/himo_qb_bridge/server/main.lua'
+          grep -Fq "QB callback health probe registered." "$CORE/server/compat_callbacks.lua"
+
+          # v0.5.8: /himocompat must never inherit ox_lib's 5-minute await timeout.
+          grep -Fq 'local function requestClientHealth(source)' "$CORE/server/selftest.lua"
+          grep -Fq 'SetTimeout(6000' "$CORE/server/selftest.lua"
+          grep -Fq "lib.callback('himo:compat:clientHealth', source, function(report)" "$CORE/server/selftest.lua"
+          grep -Fq 'client-health-timeout' "$CORE/server/selftest.lua"
+          ! grep -Fq "lib.callback.await('himo:compat:clientHealth'" "$CORE/server/selftest.lua"
 
           # Bootstrap module still precedes the public QBX API.
           test -f 'resources/[himo]/qbx_core/server/groups_catalog.lua'
@@ -195,7 +213,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
-          test "$VERSION" = '0.5.7'
+          test "$VERSION" = '0.5.8'
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           grep -Fq "HimoConfig.RequiredSchemaVersion = 5" 'resources/[himo]/himo_core/shared/config.lua'
