@@ -33,6 +33,10 @@ exports('GetPlayerByCitizenId', function(citizenId)
     return core().Functions.GetPlayerByCitizenId(citizenId)
 end)
 
+exports('CreateCallback', function(name, cb)
+    return core().Functions.CreateCallback(name, cb)
+end)
+
 exports('CreateUseableItem', function(itemName, cb)
     return core().Functions.CreateUseableItem(itemName, cb)
 end)
