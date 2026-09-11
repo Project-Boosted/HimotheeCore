@@ -52,14 +52,17 @@ local function catalogCount(catalog)
 end
 
 local function loadVehicleCatalog()
-    local ok, catalog = pcall(require, 'shared.vehicles')
-    local sourceName = 'pinned Qbox catalogue'
+    local ok, loaded = pcall(require, 'shared.vehicles')
+    local catalog = loaded
+    local rawCatalog = LoadResourceFile(GetCurrentResourceName(), 'shared/vehicles.lua') or ''
+    local sourceName = rawCatalog:find('HimotheeCore direct%-source fallback') and 'Himothee fallback catalogue' or 'pinned Qbox catalogue'
 
     if not ok or type(catalog) ~= 'table' or next(catalog) == nil then
+        local loadError = ok and 'empty table' or tostring(loaded)
         catalog = fallbackCatalog()
-        sourceName = 'Himothee fallback catalogue'
-        print(('[HimotheeCompat] WARNING: full Qbox vehicle catalogue unavailable (%s). Using %d fallback vehicles.'):format(
-            ok and 'empty table' or tostring(catalog), catalogCount(catalog)
+        sourceName = 'Himothee emergency fallback catalogue'
+        print(('[HimotheeCompat] WARNING: vehicle catalogue load failed (%s). Using %d emergency fallback vehicles.'):format(
+            loadError, catalogCount(catalog)
         ))
     end
 
