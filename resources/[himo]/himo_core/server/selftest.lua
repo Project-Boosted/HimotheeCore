@@ -33,6 +33,36 @@ HimoCommands.register('himoperms', {}, function(source, args, raw, respond)
     ))
 end)
 
+HimoCommands.register('himocompat', {}, function(source, args, raw, respond)
+    if source == 0 then return end
+
+    local qbState = GetResourceState('qb-core')
+    local qbxState = GetResourceState('qbx_core')
+    local jimState = GetResourceState('jim_bridge')
+
+    local qbOk = pcall(function()
+        local core = exports['qb-core']:GetCoreObject()
+        assert(type(core) == 'table' and type(core.Functions) == 'table')
+    end)
+
+    local qbxOk = pcall(function()
+        local jobs = exports.qbx_core:GetJobs()
+        assert(type(jobs) == 'table')
+    end)
+
+    local jimOk = false
+    if jimState == 'started' then
+        jimOk = pcall(function()
+            local cache = exports.jim_bridge:GetSharedData()
+            assert(type(cache) == 'table')
+        end)
+    end
+
+    respond(source, ('compat | qb-core=%s/%s | qbx_core=%s/%s | jim_bridge=%s/%s'):format(
+        qbState, tostring(qbOk), qbxState, tostring(qbxOk), jimState, tostring(jimOk)
+    ))
+end)
+
 HimoCommands.register('himocoretest', { permission = 'staff' }, function(source, args, raw, respond)
     local target = tonumber(args[1]) or tonumber(source)
     if not target or target == 0 then
