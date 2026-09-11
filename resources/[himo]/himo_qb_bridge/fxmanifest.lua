@@ -19,6 +19,7 @@ client_scripts {
 server_scripts {
     'server/main.lua',
     'server/helpers.lua',
+    'server/shared.lua',
     'server/catalog.lua'
 }
 
