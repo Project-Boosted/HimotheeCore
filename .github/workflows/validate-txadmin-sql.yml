@@ -38,9 +38,14 @@ jobs:
         run: |
           set -euo pipefail
           ! grep -Fq 'DELIMITER' database/007_stage1e_project_sloth.sql
+          grep -Fq 'himo_ps_players_stage' database/007_stage1e_project_sloth.sql
+          grep -Fq 'himo_ps_player_vehicles_stage' database/007_stage1e_project_sloth.sql
           grep -Fq 'trg_himo_players_metadata_writeback' database/007_stage1e_project_sloth.sql
           grep -Fq 'trg_himo_players_inventory_writeback' database/007_stage1e_project_sloth.sql
           grep -Fq 'trg_himo_player_vehicles_writeback' database/007_stage1e_project_sloth.sql
+          grep -Fq 'himo_ps_players_stage' 'resources/[himo]/himo_qb_bridge/server/project_sloth.lua'
+          grep -Fq 'himo_ps_player_vehicles_stage' 'resources/[himo]/himo_qb_bridge/server/project_sloth.lua'
+          grep -Fq "local syncInProgress = false" 'resources/[himo]/himo_qb_bridge/server/project_sloth.lua'
 
       - name: Fetch and normalize ps-mdt 3.1.4 SQL
         shell: bash
@@ -105,10 +110,103 @@ jobs:
               await run(file);
             }
 
-            // Prove the Stage 1E + MDT path is redeploy-safe.
+            // Seed a real native character/vehicle after triggers exist, then rerun
+            // Stage 1E. This reproduces the runtime recursion case which originally
+            // failed when INSERT ... SELECT read native tables directly.
+            await db.query(`
+              INSERT INTO himo_accounts (id, display_name, last_seen_name)
+              VALUES (900001, 'Stage1E CI', 'Stage1E CI');
+
+              INSERT INTO himo_identifiers (account_id, provider, identifier)
+              VALUES (900001, 'license', 'license:stage1eci');
+
+              INSERT INTO himo_characters
+                (id, account_id, citizen_id, slot, first_name, last_name, inventory)
+              VALUES
+                (900001, 900001, 'STAGE1ECI', 1, 'Stage', 'OneE', '[]');
+
+              INSERT INTO himo_character_metadata
+                (character_id, metadata, position_x, position_y, position_z, heading)
+              VALUES
+                (900001, JSON_OBJECT('callsign', 'OLD'), 1, 2, 3, 90);
+
+              INSERT INTO himo_character_jobs
+                (character_id, job_name, grade, is_primary, on_duty)
+              VALUES
+                (900001, 'police', 0, 1, 1);
+
+              INSERT INTO himo_vehicles
+                (id, owner_character_id, plate, model, garage, state, properties, metadata, glovebox, trunk)
+              VALUES
+                (900001, 900001, 'HIMO9001', 'adder', 'pillbox', 'stored', JSON_OBJECT(), JSON_OBJECT(), '[]', '[]');
+            `);
+
+            // Prove the Stage 1E + MDT path is redeploy-safe with write-back triggers present.
             await run('database/007_stage1e_project_sloth.sql');
             await run('database/vendor/ps_housing.sql');
             await run('/tmp/ps-mdt-qbcore.sql');
+
+            const [mirrorRows] = await db.query(`
+              SELECT p.citizenid, pv.plate, pv.state
+              FROM players p
+              JOIN player_vehicles pv ON pv.citizenid = p.citizenid
+              WHERE p.citizenid = 'STAGE1ECI' AND pv.plate = 'HIMO9001'
+            `);
+            if (mirrorRows.length !== 1 || Number(mirrorRows[0].state) !== 1) {
+              throw new Error('Staged native -> Project Sloth mirror did not populate test character/vehicle');
+            }
+
+            // Simulate Project Sloth direct SQL writes.
+            await db.query(`
+              UPDATE players
+              SET metadata = JSON_OBJECT('callsign', 'A-12'), inventory = '[{"name":"mdt"}]'
+              WHERE citizenid = 'STAGE1ECI';
+
+              UPDATE player_vehicles
+              SET state = 2, mdt_vehicle_points = 4, mdt_vehicle_status = 'suspended'
+              WHERE plate = 'HIMO9001';
+            `);
+
+            const [nativeRows] = await db.query(`
+              SELECT
+                JSON_UNQUOTE(JSON_EXTRACT(m.metadata, '$.callsign')) AS callsign,
+                c.inventory,
+                v.state,
+                v.mdt_vehicle_points,
+                v.mdt_vehicle_status
+              FROM himo_characters c
+              JOIN himo_character_metadata m ON m.character_id = c.id
+              JOIN himo_vehicles v ON v.owner_character_id = c.id
+              WHERE c.citizen_id = 'STAGE1ECI' AND v.plate = 'HIMO9001'
+            `);
+            if (nativeRows.length !== 1
+              || nativeRows[0].callsign !== 'A-12'
+              || !String(nativeRows[0].inventory).includes('mdt')
+              || nativeRows[0].state !== 'impound'
+              || Number(nativeRows[0].mdt_vehicle_points) !== 4
+              || nativeRows[0].mdt_vehicle_status !== 'suspended') {
+              throw new Error(`Project Sloth -> native write-back failed: ${JSON.stringify(nativeRows[0] || null)}`);
+            }
+
+            // A subsequent native -> compatibility refresh must preserve those writes.
+            await run('database/007_stage1e_project_sloth.sql');
+            const [roundTripRows] = await db.query(`
+              SELECT
+                JSON_UNQUOTE(JSON_EXTRACT(p.metadata, '$.callsign')) AS callsign,
+                pv.state,
+                pv.mdt_vehicle_points,
+                pv.mdt_vehicle_status
+              FROM players p
+              JOIN player_vehicles pv ON pv.citizenid = p.citizenid
+              WHERE p.citizenid = 'STAGE1ECI' AND pv.plate = 'HIMO9001'
+            `);
+            if (roundTripRows.length !== 1
+              || roundTripRows[0].callsign !== 'A-12'
+              || Number(roundTripRows[0].state) !== 2
+              || Number(roundTripRows[0].mdt_vehicle_points) !== 4
+              || roundTripRows[0].mdt_vehicle_status !== 'suspended') {
+              throw new Error(`Project Sloth round-trip mirror failed: ${JSON.stringify(roundTripRows[0] || null)}`);
+            }
 
             const [rows] = await db.query(`
               SELECT TRIGGER_NAME
