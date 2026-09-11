@@ -4,7 +4,7 @@ game 'gta5'
 name 'himo_characters'
 author 'HimotheeGaming'
 description 'HimotheeCore tutorial-session multicharacter lifecycle'
-version '0.5.0'
+version '0.5.1'
 
 lua54 'yes'
 
