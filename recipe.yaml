@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.5.1
+version: 0.5.2
 author: HimotheeGaming
-description: Stage 1D compatibility validation with QBCore/Qbox facades, Jim Bridge, ox_inventory, ox_target, and drag-and-drop helper adapters.
+description: Stage 1D Jim compatibility hotfix with a pinned Qbox vehicle catalogue and qb-inventory config contracts.
 
 tasks:
   - action: download_github
@@ -64,6 +64,11 @@ tasks:
     replace: "vehicleTable = 'himo_vehicles'"
 
   - action: download_github
+    src: https://github.com/Qbox-project/qbx_core
+    ref: c1c3ca16721cd14eb814cfb95e8f8631690d247d
+    dest: ./tmp/qbox-core-upstream
+
+  - action: download_github
     src: https://github.com/jimathy/jim_bridge
     ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60
     dest: ./resources/[dependencies]/jim_bridge
@@ -84,6 +89,14 @@ tasks:
   - action: move_path
     src: ./tmp/himotheecore/resources/[himo]
     dest: ./resources/[himo]
+
+  - action: move_path
+    src: ./tmp/qbox-core-upstream/shared/vehicles.lua
+    dest: ./resources/[himo]/qbx_core/shared/vehicles.lua
+
+  - action: move_path
+    src: ./tmp/qbox-core-upstream/LICENSE
+    dest: ./resources/[himo]/qbx_core/QBOX_UPSTREAM_LICENSE
 
   - action: move_path
     src: ./tmp/himotheecore/server.cfg
