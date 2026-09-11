@@ -96,7 +96,8 @@ local function buildPlayerData(source, character)
         charinfo = {
             firstname = character.first_name or '', lastname = character.last_name or '',
             birthdate = tostring(character.date_of_birth or ''):sub(1, 10),
-            nationality = character.nationality or '', gender = genderNumber(character.gender)
+            nationality = character.nationality or '', gender = genderNumber(character.gender),
+            account = character.citizen_id
         },
         money = { cash = getBalance(character, 'cash'), bank = getBalance(character, 'bank') },
         metadata = qbMetadata, job = job, gang = gang
@@ -165,6 +166,10 @@ QBCore.Functions.GetPlayerByCitizenId = function(citizenId)
         if character and character.citizen_id == citizenId then return wrapPlayer(numericSource) end
     end
 end
+QBCore.Functions.GetIdentifier = function(source)
+    local player = wrapPlayer(source)
+    return player and player.PlayerData.citizenid or nil
+end
 QBCore.Functions.HasPermission = function(source, permission)
     permission = tostring(permission or ''):lower()
     if permission == 'god' then permission = 'admin' end
@@ -179,6 +184,19 @@ RegisterNetEvent('QBCore:Server:TriggerCallback', function(name, ...)
     local callback = QBCore.ServerCallbacks[name]
     if not callback then return end
     callback(src, function(...) TriggerClientEvent('QBCore:Client:TriggerCallback', src, name, ...) end, ...)
+end)
+
+RegisterNetEvent('QBCore:ToggleDuty', function()
+    local src = source
+    local player = exports.himo_core:GetPlayer(src)
+    if not player then return end
+    local job = player.Functions.GetPrimaryJob()
+    if not job then return end
+    local current = isTrue(job.on_duty)
+    local ok = player.Functions.SetDuty(not current)
+    if ok then
+        TriggerClientEvent('QBCore:Client:SetDuty', src, not current)
+    end
 end)
 
 exports('GetCoreObject', function() return QBCore end)
