@@ -55,7 +55,7 @@ jobs:
               data = yaml.safe_load(handle)
           assert data.get('$engine') == 3
           assert data.get('$onesync') in ('on', True)
-          assert data.get('version') == '0.5.5'
+          assert data.get('version') == '0.5.6'
           assert isinstance(data.get('tasks'), list) and data['tasks']
           PY
           grep -Fq 'overextended/ox_target/releases/download/v1.18.1/ox_target.zip' recipe.yaml
@@ -91,14 +91,13 @@ jobs:
           test -f "$CORE/client/compat_test.lua"
           grep -Fq "HimoCommands.register('himocompat'" "$CORE/server/selftest.lua"
 
-          # Exact-name compatibility resources.
           for resource in qb-core qbx_core qbx_vehicles qb-menu qb-input qb-target qb-inventory progressbar; do
             test -f "resources/[himo]/${resource}/fxmanifest.lua"
           done
           test -f 'resources/[himo]/qb-inventory/config.lua'
           test -f 'resources/[himo]/qb-inventory/config/config.lua'
 
-          # v0.5.3 live fixes: one SQL parameter and primed QBX groups.
+          # v0.5.3 live fixes: qbx_vehicles trim must return one SQL parameter.
           grep -Fq "local result = tostring(value or '')" 'resources/[himo]/qbx_vehicles/server/main.lua'
           ! grep -Fq "return tostring(value or ''):gsub" 'resources/[himo]/qbx_vehicles/server/main.lua'
           grep -Fq "TriggerEvent('qbx_core:client:setGroups', snapshot)" 'resources/[himo]/qbx_core/client/main.lua'
@@ -107,29 +106,41 @@ jobs:
           GU=$(grep -nF "TriggerEvent('qbx_core:client:onGroupUpdate', groupName, groupGrade)" 'resources/[himo]/qbx_core/client/main.lua' | head -n1 | cut -d: -f1)
           test "$SG" -lt "$GU"
 
-          # v0.5.4 vehicle catalogue must not depend on a stale exported QB copy.
+          # Vehicle catalogue authority remains explicit and dynamic.
           grep -Fq 'local function vehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
-          grep -Fq 'GetLoadedVehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
           grep -Fq "GetSharedCatalog('Vehicles')" 'resources/[himo]/qbx_core/server/main.lua'
-          grep -Fq 'local vehicles = vehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq 'GetLoadedVehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
 
-          # v0.5.5: qb-core owns its client object/callback directly.
-          grep -Fq 'local QBCore = {' 'resources/[himo]/qb-core/client/main.lua'
+          # v0.5.6: internal client APIs are explicit exports, not function-table hopping.
+          grep -Fq "exports('GetPlayerData'" 'resources/[himo]/himo_qb_bridge/client/main.lua'
+          grep -Fq "exports('Notify'" 'resources/[himo]/himo_qb_bridge/client/main.lua'
+          grep -Fq "exports('Progressbar'" 'resources/[himo]/himo_qb_bridge/client/helpers.lua'
+          grep -Fq "exports('HasItem'" 'resources/[himo]/himo_qb_bridge/client/helpers.lua'
+          grep -Fq 'return exports.himo_qb_bridge:GetPlayerData()' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'QBCore.PlayerData = data' 'resources/[himo]/qb-core/client/main.lua'
           grep -Fq 'QBCore.Functions.TriggerCallback = triggerCallback' 'resources/[himo]/qb-core/client/main.lua'
-          grep -Fq "TriggerServerEvent('QBCore:Server:TriggerCallback'" 'resources/[himo]/qb-core/client/main.lua'
-          ! grep -Fq "object.Functions.TriggerCallback = triggerCallback" 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq "exports('GetCoreObject', getCoreObject)" 'resources/[himo]/qb-core/client/main.lua'
+          ! grep -Fq 'local function bridgeCore()' 'resources/[himo]/qb-core/client/main.lua'
+          ! grep -Fq 'local function callBridge(' 'resources/[himo]/qb-core/client/main.lua'
 
-          # v0.5.5: jobs/gangs are primed synchronously before qbx_core main/Jim.
+          # v0.5.6: QBX client resolves live public qb-core APIs.
+          grep -Fq "return exports['qb-core']:GetPlayerData()" 'resources/[himo]/qbx_core/client/main.lua'
+          grep -Fq "return exports['qb-core']:GetShared(namespace)" 'resources/[himo]/qbx_core/client/main.lua'
+
+          # v0.5.6: QBX server does not retain a startup QB object for jobs/gangs.
+          grep -Fq 'local function qb()' 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq "exports('GetJobs', function() return sharedCatalog('Jobs') end)" 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq "exports('GetGangs', function() return sharedCatalog('Gangs') end)" 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq "local native = exports.himo_core:GetJobDefinitions()" 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq "local native = exports.himo_core:GetGroupDefinitions('gang')" 'resources/[himo]/qbx_core/server/main.lua'
+          ! grep -Fq "local QB = exports['qb-core']:GetCoreObject()" 'resources/[himo]/qbx_core/server/main.lua'
+
+          # Bootstrap module still precedes the public QBX API.
           test -f 'resources/[himo]/qbx_core/server/groups_catalog.lua'
-          grep -Fq "GetJobDefinitions()" 'resources/[himo]/qbx_core/server/groups_catalog.lua'
-          grep -Fq "GetGroupDefinitions('gang')" 'resources/[himo]/qbx_core/server/groups_catalog.lua'
-          grep -Fq "SetSharedCatalog('Jobs', jobs)" 'resources/[himo]/qbx_core/server/groups_catalog.lua'
-          grep -Fq "SetSharedCatalog('Gangs', gangs)" 'resources/[himo]/qbx_core/server/groups_catalog.lua'
           CATALOG_LINE=$(grep -nF "'server/groups_catalog.lua'" 'resources/[himo]/qbx_core/fxmanifest.lua' | cut -d: -f1)
           MAIN_LINE=$(grep -nF "'server/main.lua'" 'resources/[himo]/qbx_core/fxmanifest.lua' | cut -d: -f1)
           test "$CATALOG_LINE" -lt "$MAIN_LINE"
 
-          # Runtime stack configuration.
           grep -Fq 'setr inventory:framework "qbx"' server.cfg
           grep -Fq 'setr inventory:slots 50' server.cfg
           grep -Fq 'setr inventory:weight 120000' server.cfg
@@ -170,7 +181,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
-          test "$VERSION" = '0.5.5'
+          test "$VERSION" = '0.5.6'
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           grep -Fq "HimoConfig.RequiredSchemaVersion = 5" 'resources/[himo]/himo_core/shared/config.lua'
