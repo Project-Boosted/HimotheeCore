@@ -48,6 +48,8 @@ local function syncVehicleCatalog()
     if GetResourceState('qbx_core') ~= 'started' then return false end
 
     local ok, vehicles = pcall(function()
+        local loaded = exports.qbx_core:GetLoadedVehicleCatalog()
+        if type(loaded) == 'table' and next(loaded) ~= nil then return loaded end
         return exports.qbx_core:GetVehiclesByName()
     end)
 
@@ -119,7 +121,7 @@ AddEventHandler('onResourceStart', function(resourceName)
         end)
     elseif resourceName == 'qbx_core' then
         -- qbx_core has completed its server scripts at this point, including its
-        -- vehicle loader. Pull that populated catalogue back into the actual
+        -- vehicle loader. Pull its explicit loader cache back into the actual
         -- Himothee QB authority before downstream resources (Jim) read it.
         syncVehicleCatalog()
     end
