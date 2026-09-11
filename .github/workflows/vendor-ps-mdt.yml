@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/vendor-ps-mdt.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/vendor-ps-mdt.yml'
   workflow_dispatch:
 
 permissions:
