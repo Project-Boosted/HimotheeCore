@@ -68,3 +68,14 @@ QBCore.Functions.DeleteVehicle = function(vehicle)
     DeleteVehicle(vehicle)
     return not DoesEntityExist(vehicle)
 end
+
+-- Explicit exports are used by the public qb-core facade. Avoid returning a
+-- CoreObject from this resource and then invoking function fields across a
+-- second resource boundary.
+exports('Progressbar', function(...) return QBCore.Functions.Progressbar(...) end)
+exports('HasItem', function(...) return QBCore.Functions.HasItem(...) end)
+exports('GetCoords', function(...) return QBCore.Functions.GetCoords(...) end)
+exports('GetVehicle', function(...) return QBCore.Functions.GetVehicle(...) end)
+exports('GetPlate', function(...) return QBCore.Functions.GetPlate(...) end)
+exports('SpawnVehicle', function(...) return QBCore.Functions.SpawnVehicle(...) end)
+exports('DeleteVehicle', function(...) return QBCore.Functions.DeleteVehicle(...) end)
