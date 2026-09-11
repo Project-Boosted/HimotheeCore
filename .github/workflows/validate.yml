@@ -54,7 +54,7 @@ jobs:
               data = yaml.safe_load(handle)
           assert data.get('$engine') == 3
           assert data.get('$onesync') in ('on', True)
-          assert data.get('version') == '0.5.1'
+          assert data.get('version') == '0.5.2'
           assert isinstance(data.get('tasks'), list) and data['tasks']
           print('recipe.yaml OK')
           PY
@@ -70,6 +70,11 @@ jobs:
           grep -Fq 'overextended/ox_target/releases/download/v1.18.1/ox_target.zip' recipe.yaml
           grep -Fq 'overextended/ox_inventory/releases/download/v2.47.9/ox_inventory.zip' recipe.yaml
           grep -Fq 'iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip' recipe.yaml
+          grep -Fq 'src: https://github.com/Qbox-project/qbx_core' recipe.yaml
+          grep -Fq 'ref: c1c3ca16721cd14eb814cfb95e8f8631690d247d' recipe.yaml
+          grep -Fq './tmp/qbox-core-upstream/shared/vehicles.lua' recipe.yaml
+          grep -Fq './resources/[himo]/qbx_core/shared/vehicles.lua' recipe.yaml
+          grep -Fq './resources/[himo]/qbx_core/QBOX_UPSTREAM_LICENSE' recipe.yaml
           grep -Fq 'src: https://github.com/jimathy/jim_bridge' recipe.yaml
           grep -Fq 'ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60' recipe.yaml
           grep -Fq 'database/006_stage1d_compatibility.sql' recipe.yaml
@@ -128,11 +133,15 @@ jobs:
           set -euo pipefail
           test -f 'resources/[himo]/qb-core/fxmanifest.lua'
           test -f 'resources/[himo]/qbx_core/fxmanifest.lua'
+          test -f 'resources/[himo]/qbx_core/server/vehicles.lua'
+          test -f 'resources/[himo]/qbx_core/shared/vehicles.lua'
           test -f 'resources/[himo]/qbx_vehicles/fxmanifest.lua'
           test -f 'resources/[himo]/qb-menu/fxmanifest.lua'
           test -f 'resources/[himo]/qb-input/fxmanifest.lua'
           test -f 'resources/[himo]/qb-target/fxmanifest.lua'
           test -f 'resources/[himo]/qb-inventory/fxmanifest.lua'
+          test -f 'resources/[himo]/qb-inventory/config.lua'
+          test -f 'resources/[himo]/qb-inventory/config/config.lua'
           test -f 'resources/[himo]/progressbar/fxmanifest.lua'
 
           grep -Fq "name 'qb-core'" 'resources/[himo]/qb-core/fxmanifest.lua'
@@ -141,7 +150,17 @@ jobs:
           grep -Fq "exports('GetCoreObject'" 'resources/[himo]/qb-core/server/main.lua'
           grep -Fq "exports('GetPlayer'" 'resources/[himo]/qbx_core/server/main.lua'
           grep -Fq "exports('CreateUseableItem'" 'resources/[himo]/qbx_core/server/main.lua'
+          grep -Fq "'server/vehicles.lua'" 'resources/[himo]/qbx_core/fxmanifest.lua'
+          grep -Fq "'shared/vehicles.lua'" 'resources/[himo]/qbx_core/fxmanifest.lua'
+          grep -Fq 'QB.Shared.Vehicles = catalog' 'resources/[himo]/qbx_core/server/vehicles.lua'
+          grep -Fq "exports('GetVehicleCatalogCount'" 'resources/[himo]/qbx_core/server/vehicles.lua'
           grep -Fq "exports('GetVehicleIdByPlate'" 'resources/[himo]/qbx_vehicles/server/main.lua'
+          grep -Fq "Config.MaxInventoryWeight" 'resources/[himo]/qb-inventory/config.lua'
+          grep -Fq "Config.MaxInventorySlots" 'resources/[himo]/qb-inventory/config.lua'
+          grep -Fq "Config.MaxWeight" 'resources/[himo]/qb-inventory/config/config.lua'
+          grep -Fq "Config.MaxSlots" 'resources/[himo]/qb-inventory/config/config.lua'
+          grep -Fq "'config.lua'" 'resources/[himo]/qb-inventory/fxmanifest.lua'
+          grep -Fq "'config/config.lua'" 'resources/[himo]/qb-inventory/fxmanifest.lua'
           grep -Fq "exports('Health'" 'resources/[himo]/qb-menu/client/main.lua'
           grep -Fq "exports('Health'" 'resources/[himo]/qb-input/client/main.lua'
           grep -Fq "exports('Health'" 'resources/[himo]/qb-target/client/main.lua'
@@ -150,6 +169,8 @@ jobs:
           grep -Fq "exports('Health'" 'resources/[himo]/progressbar/client/main.lua'
 
           grep -Fq 'setr inventory:framework "qbx"' server.cfg
+          grep -Fq 'setr inventory:slots 50' server.cfg
+          grep -Fq 'setr inventory:weight 120000' server.cfg
           grep -Fq 'setr inventory:target true' server.cfg
           grep -Fq 'setr jim_menuScript ox' server.cfg
           grep -Fq 'setr jim_notifyScript ox' server.cfg
@@ -209,7 +230,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
-          test "$VERSION" = '0.5.1'
+          test "$VERSION" = '0.5.2'
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           grep -Fq "HimoConfig.RequiredSchemaVersion = 5" 'resources/[himo]/himo_core/shared/config.lua'
