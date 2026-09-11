@@ -43,6 +43,11 @@ RegisterNetEvent('himo_core:client:moneyChanged', function(accountType, balance,
     TriggerEvent('himo_core:client:onMoneyChanged', accountType, balance, transactionType, amount, reason)
 end)
 
+RegisterNetEvent('himo_core:client:playerDataFieldChanged', function(key, value)
+    if currentCharacter and type(key) == 'string' and key ~= '' then currentCharacter[key] = value end
+    TriggerEvent('himo_core:client:onPlayerDataFieldChanged', key, value)
+end)
+
 RegisterNetEvent('himo_core:client:metadataSnapshot', function(snapshot)
     metadata = type(snapshot) == 'table' and snapshot or {}
     if currentCharacter then currentCharacter.metadata = metadata end
