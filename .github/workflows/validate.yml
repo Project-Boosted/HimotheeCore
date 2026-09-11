@@ -91,9 +91,14 @@ jobs:
           grep -Fq 'ref: 5e89d4afb3e28b490344e84b5e2b5ac8cc5d9c75' recipe.yaml
 
           grep -Fq 'database/007_stage1e_project_sloth.sql' recipe.yaml
-          grep -Fq 'ps-housing/README - INSTALL INSTRUCTIONS/QBOX/properties.sql' recipe.yaml
+          grep -Fq './tmp/himotheecore/database/vendor/ps_housing.sql' recipe.yaml
+          ! grep -Fq 'ps-housing/README - INSTALL INSTRUCTIONS/QBOX/properties.sql' recipe.yaml
           grep -Fq 'ps-mdt/sql/qbcore.sql' recipe.yaml
           grep -Fq 'ox_doorlock/sql/ox_doorlock.sql' recipe.yaml
+
+          test -f database/vendor/ps_housing.sql
+          grep -Fq 'CREATE TABLE IF NOT EXISTS `properties`' database/vendor/ps_housing.sql
+          ! grep -Eiq '^[[:space:]]*DROP[[:space:]]+TABLE' database/vendor/ps_housing.sql
 
           grep -Fq "replace: \"playerTable = 'himo_characters'\"" recipe.yaml
           grep -Fq "replace: \"playerColumn = 'citizen_id'\"" recipe.yaml
@@ -108,6 +113,7 @@ jobs:
           test -f deploy/jim_items.lua
           test -f deploy/project_sloth_items.lua
           test -f 'resources/[himo]/himo_qb_bridge/server/project_sloth.lua'
+          test -f 'resources/[himo]/himo_core/server/project_sloth_acceptance.lua'
           grep -Fq 'himo_project_sloth_items.lua' recipe.yaml
           grep -Fq "lib.load('data.himo_project_sloth_items')" recipe.yaml
           grep -Fq '{{addPrincipalsMaster}}' server.cfg
@@ -133,15 +139,21 @@ jobs:
           test -f "$CORE/client/compat_test.lua"
           test -f "$CORE/server/compat_callbacks.lua"
           test -f "$CORE/server/jim_acceptance.lua"
+          test -f "$CORE/server/project_sloth_acceptance.lua"
           test -f "$BRIDGE/server/project_sloth.lua"
           grep -Fq "'server/compat_callbacks.lua'" "$CORE/fxmanifest.lua"
           grep -Fq "'server/jim_acceptance.lua'" "$CORE/fxmanifest.lua"
+          grep -Fq "'server/project_sloth_acceptance.lua'" "$CORE/fxmanifest.lua"
           grep -Fq "'server/project_sloth.lua'" "$BRIDGE/fxmanifest.lua"
           grep -Fq "'oxmysql'" "$BRIDGE/fxmanifest.lua"
           grep -Fq 'GetOfflinePlayerByCitizenId' "$BRIDGE/server/project_sloth.lua"
           grep -Fq 'SyncProjectSlothMirrors' "$BRIDGE/server/project_sloth.lua"
           grep -Fq 'INSERT INTO players' "$BRIDGE/server/project_sloth.lua"
           grep -Fq 'INSERT INTO player_vehicles' "$BRIDGE/server/project_sloth.lua"
+          grep -Fq "HimoCommands.register('himopstest'" "$CORE/server/project_sloth_acceptance.lua"
+          grep -Fq "'ps-housing'" "$CORE/server/project_sloth_acceptance.lua"
+          grep -Fq "'ps-mdt'" "$CORE/server/project_sloth_acceptance.lua"
+          grep -Fq "'ps-adminmenu'" "$CORE/server/project_sloth_acceptance.lua"
 
           grep -Fq "HimoCommands.register('himocompat'" "$CORE/server/selftest.lua"
           grep -Fq "HimoCommands.register('himojimtest'" "$CORE/server/jim_acceptance.lua"
@@ -227,11 +239,14 @@ jobs:
             database/004_stage1c_core_services.sql \
             database/005_stage1c_account_roles.sql \
             database/006_stage1d_compatibility.sql \
-            database/007_stage1e_project_sloth.sql; do
+            database/007_stage1e_project_sloth.sql \
+            database/vendor/ps_housing.sql; do
             mariadb -h 127.0.0.1 -uroot himothee_ci < "$sql"
           done
+          # Prove the vendor housing migration is safe to run again on a redeploy.
+          mariadb -h 127.0.0.1 -uroot himothee_ci < database/vendor/ps_housing.sql
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT MAX(version) FROM himo_schema_migrations" | grep -qx '6'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM himo_jobs WHERE name IN ('police','ambulance','realestate') AND is_active=1" | grep -qx '3'
-          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME IN ('players','player_vehicles')" | grep -qx '2'
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME IN ('players','player_vehicles','properties')" | grep -qx '3'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME='himo_vehicles' AND COLUMN_NAME LIKE 'mdt_vehicle_%'" | grep -qx '6'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='himothee_ci' AND TRIGGER_NAME IN ('trg_himo_players_writeback','trg_himo_player_vehicles_writeback')" | grep -qx '2'
