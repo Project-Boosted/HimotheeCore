@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.5.2
+version: 0.5.3
 author: HimotheeGaming
-description: Stage 1D Jim compatibility hotfix with a pinned Qbox vehicle catalogue and qb-inventory config contracts.
+description: Stage 1D QBX runtime hardening with safe group initialization and qbx_vehicles SQL parameter fixes.
 
 tasks:
   - action: download_github
