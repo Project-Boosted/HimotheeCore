@@ -12,6 +12,7 @@ shared_script '@ox_lib/init.lua'
 client_script 'client/main.lua'
 server_scripts {
     'server/vehicles.lua',
+    'server/groups_catalog.lua',
     'server/main.lua'
 }
 
