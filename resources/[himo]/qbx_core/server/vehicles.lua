@@ -1,4 +1,5 @@
 local QB = exports['qb-core']:GetCoreObject()
+local loadedCatalog = {}
 
 local function fallbackVehicle(name, brand, model, price, category, vehicleType)
     return {
@@ -66,7 +67,16 @@ local function loadVehicleCatalog()
         ))
     end
 
+    loadedCatalog = catalog
     QB.Shared.Vehicles = catalog
+
+    -- GetCoreObject crosses a resource boundary, so mutating the returned table
+    -- alone does not reliably update Himothee's authoritative QB object. Push the
+    -- catalogue through an explicit setter before qbx_core/server/main.lua runs.
+    local synced = exports.himo_qb_bridge:SetSharedCatalog('Vehicles', catalog)
+    if not synced then
+        print('[HimotheeCompat] WARNING: failed to synchronize vehicle catalogue into himo_qb_bridge authority.')
+    end
 
     local count = catalogCount(catalog)
     GlobalState['himothee_core:vehicleCatalogCount'] = count
@@ -79,6 +89,9 @@ end
 loadVehicleCatalog()
 
 exports('ReloadVehicleCatalog', loadVehicleCatalog)
+exports('GetLoadedVehicleCatalog', function()
+    return loadedCatalog
+end)
 exports('GetVehicleCatalogCount', function()
-    return catalogCount(QB.Shared.Vehicles)
+    return catalogCount(loadedCatalog)
 end)
