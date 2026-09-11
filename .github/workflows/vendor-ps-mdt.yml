@@ -1,0 +1,66 @@
+name: Build ps-mdt 3.1.4 Vendor Bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/vendor-ps-mdt.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout HimotheeCore publisher
+        uses: actions/checkout@v4
+        with:
+          path: publisher
+          fetch-depth: 0
+
+      - name: Checkout ps-mdt 3.1.4 source
+        uses: actions/checkout@v4
+        with:
+          repository: Project-Sloth/ps-mdt
+          ref: 0be47ae0b76c9af8e0bf5dc9c4dc369b1587e476
+          path: upstream
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: upstream/web/pnpm-lock.yaml
+
+      - name: Build exact ps-mdt frontend
+        working-directory: upstream/web
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm run build
+          test -f dist/index.html
+
+      - name: Publish immutable web bundle branch
+        shell: bash
+        env:
+          BRANCH: vendor-ps-mdt-web-3.1.4
+        run: |
+          set -euo pipefail
+          cd publisher
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout --orphan "$BRANCH"
+          git rm -rf .
+          mkdir -p web
+          cp -R ../upstream/web/dist web/dist
+          printf '%s\n' 'ps-mdt 3.1.4 web/dist built from Project-Sloth/ps-mdt commit 0be47ae0b76c9af8e0bf5dc9c4dc369b1587e476.' > BUILD_SOURCE.txt
+          git add BUILD_SOURCE.txt web/dist
+          git commit -m 'vendor: ps-mdt 3.1.4 web bundle'
+          git push --force origin "$BRANCH"
