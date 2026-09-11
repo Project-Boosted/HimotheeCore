@@ -57,6 +57,26 @@ local function matchesFilter(source, filter, primaryOnly)
     return false
 end
 
+local function vehicleCatalog()
+    -- Do not rely on the QB object captured when this file started. Resource
+    -- exports cross a boundary and that startup snapshot can remain empty even
+    -- after server/vehicles.lua has loaded and synchronized the real catalogue.
+    local ok, loaded = pcall(function()
+        return exports.qbx_core:GetLoadedVehicleCatalog()
+    end)
+    if ok and type(loaded) == 'table' and next(loaded) ~= nil then
+        return loaded
+    end
+
+    local authoritative = exports.himo_qb_bridge:GetSharedCatalog('Vehicles')
+    if type(authoritative) == 'table' and next(authoritative) ~= nil then
+        return authoritative
+    end
+
+    local fresh = exports['qb-core']:GetCoreObject()
+    return fresh and fresh.Shared and fresh.Shared.Vehicles or {}
+end
+
 exports('GetCoreVersion', function() return VERSION end)
 exports('GetSource', function(identifier) return resolveSource(identifier) or 0 end)
 exports('GetUserId', function(identifier)
@@ -92,7 +112,7 @@ exports('GetGangs', function() return QB.Shared.Gangs or {} end)
 exports('GetJob', function(name) return QB.Shared.Jobs and QB.Shared.Jobs[name] or nil end)
 exports('GetGang', function(name) return QB.Shared.Gangs and QB.Shared.Gangs[name] or nil end)
 exports('GetVehiclesByName', function(vehicle)
-    local vehicles = QB.Shared.Vehicles or {}
+    local vehicles = vehicleCatalog()
     return vehicle and vehicles[vehicle] or vehicles
 end)
 exports('GetWeapons', function(weapon)
