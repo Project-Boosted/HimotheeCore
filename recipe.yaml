@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.5.3
+version: 0.5.4
 author: HimotheeGaming
-description: Stage 1D QBX runtime hardening with safe group initialization and qbx_vehicles SQL parameter fixes.
+description: Stage 1D QB shared-authority hotfix for vehicle catalogue propagation and exact qb-core callbacks.
 
 tasks:
   - action: download_github
