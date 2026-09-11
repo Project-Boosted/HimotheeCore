@@ -149,7 +149,7 @@ jobs:
           grep -Fq "exports('Health'" 'resources/[himo]/qb-inventory/server/main.lua'
           grep -Fq "exports('Health'" 'resources/[himo]/progressbar/client/main.lua'
 
-          grep -Fq 'setr inventory:framework "qbx"' server.cfg
+          grep -Fq 'setr inventory:framework "qbx"' server.cfg || grep -Fq 'setr inventory:framework "qbx"' server.cfg
           grep -Fq 'setr inventory:target true' server.cfg
           grep -Fq 'setr jim_menuScript ox' server.cfg
           grep -Fq 'setr jim_notifyScript ox' server.cfg
