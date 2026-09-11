@@ -1,5 +1,19 @@
 local QBCore = exports['himo_qb_bridge']:GetCoreObject()
 
+local function trim(value)
+    return tostring(value or ''):match('^%s*(.-)%s*$') or ''
+end
+
+local function round(value, decimals)
+    value = tonumber(value) or 0
+    decimals = tonumber(decimals) or 0
+    local power = 10 ^ decimals
+    return math.floor(value * power + 0.5) / power
+end
+
+QBCore.Shared.Trim = trim
+QBCore.Shared.Round = round
+
 QBCore.Functions.Progressbar = function(name, label, duration, useWhileDead, canCancel, disableControls, animation, prop, propTwo, onFinish, onCancel)
     local data = {
         name = name,
@@ -48,7 +62,18 @@ end
 
 QBCore.Functions.GetPlate = function(vehicle)
     if not vehicle or vehicle == 0 then return nil end
-    return (GetVehicleNumberPlateText(vehicle) or ''):gsub('^%s+', ''):gsub('%s+$', '')
+    return trim(GetVehicleNumberPlateText(vehicle) or '')
+end
+
+QBCore.Functions.GetVehicleProperties = function(vehicle)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return {} end
+    return lib.getVehicleProperties(vehicle) or {}
+end
+
+QBCore.Functions.SetVehicleProperties = function(vehicle, properties)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) or type(properties) ~= 'table' then return false end
+    lib.setVehicleProperties(vehicle, properties)
+    return true
 end
 
 QBCore.Functions.SpawnVehicle = function(model, cb, coords, isNetworked)
@@ -77,5 +102,7 @@ exports('HasItem', function(...) return QBCore.Functions.HasItem(...) end)
 exports('GetCoords', function(...) return QBCore.Functions.GetCoords(...) end)
 exports('GetVehicle', function(...) return QBCore.Functions.GetVehicle(...) end)
 exports('GetPlate', function(...) return QBCore.Functions.GetPlate(...) end)
+exports('GetVehicleProperties', function(...) return QBCore.Functions.GetVehicleProperties(...) end)
+exports('SetVehicleProperties', function(...) return QBCore.Functions.SetVehicleProperties(...) end)
 exports('SpawnVehicle', function(...) return QBCore.Functions.SpawnVehicle(...) end)
 exports('DeleteVehicle', function(...) return QBCore.Functions.DeleteVehicle(...) end)
