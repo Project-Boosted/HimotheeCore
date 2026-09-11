@@ -1,8 +1,8 @@
 $engine: 3
-$onesync: on
+$onesync: "on"
 
 name: HimotheeCore
-version: 0.5.9
+version: "0.5.9"
 author: HimotheeGaming
 description: Stage 1D real-world Jim gameplay acceptance with pinned Jim Mining and Jim Recycle resources.
 
@@ -108,7 +108,7 @@ tasks:
     mode: literal
     file: ./resources/[dependencies]/ox_inventory/modules/items/shared.lua
     search: "ItemList.cash = ItemList.money"
-    replace: "for k, v in pairs(lib.load('data.himo_jim_items') or {}) do\n    v.name = k\n    pcall(newItem, v)\nend\n\nItemList.cash = ItemList.money"
+    replace: "for k, v in pairs(lib.load('data.himo_jim_items') or {}) do v.name = k; pcall(newItem, v) end ItemList.cash = ItemList.money"
 
   - action: remove_path
     path: ./resources/[himo]/qbx_core/shared/vehicles.lua
