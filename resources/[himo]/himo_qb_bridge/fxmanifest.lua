@@ -9,8 +9,16 @@ version '0.4.3'
 lua54 'yes'
 
 shared_script '@ox_lib/init.lua'
-client_script 'client/main.lua'
-server_script 'server/main.lua'
+
+client_scripts {
+    'client/main.lua',
+    'client/catalog.lua'
+}
+
+server_scripts {
+    'server/main.lua',
+    'server/catalog.lua'
+}
 
 dependencies {
     'ox_lib',
