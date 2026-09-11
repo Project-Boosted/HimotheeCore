@@ -1,7 +1,25 @@
 local cachedPlayerData
 local clientCallbacks = {}
 
-local QBCore = { Functions = {}, Shared = { Jobs = {}, Gangs = {} } }
+local QBCore = {
+    Functions = {},
+    Shared = {
+        Items = {},
+        Vehicles = {},
+        Weapons = {},
+        Locations = {},
+        StarterItems = {},
+        Jobs = {
+            unemployed = {
+                label = 'Unemployed', type = 'none', defaultDuty = false,
+                grades = { [0] = { name = 'Unemployed', payment = 0, isboss = false } }
+            }
+        },
+        Gangs = {
+            none = { label = 'No Gang', grades = { [0] = { name = 'none', isboss = false } } }
+        }
+    }
+}
 
 local function isTrue(value) return value == true or value == 1 or value == '1' end
 local function genderNumber(value)
@@ -15,7 +33,7 @@ local function getBalance(character, accountType)
     return 0
 end
 local function primaryJob(character)
-    local exported = exports['himo_core']:GetPrimaryJob()
+    local exported = exports.himo_core:GetPrimaryJob()
     if exported then return exported end
     for _, job in ipairs(character and character.jobs or {}) do
         if isTrue(job.is_primary) then return job end
@@ -35,7 +53,7 @@ local function buildJob(character)
     }
 end
 local function buildGang()
-    local row = exports['himo_core']:GetPrimaryGroup()
+    local row = exports.himo_core:GetPrimaryGroup()
     if not row or row.group_name == 'none' then
         return { name = 'none', label = 'No Gang', isboss = false, grade = { name = 'none', level = 0 } }
     end
@@ -64,12 +82,12 @@ local function registerSharedGang(gang)
 end
 
 local function buildPlayerData()
-    local character = exports['himo_core']:GetCharacter()
+    local character = exports.himo_core:GetCharacter()
     local base = {
         citizenid = '', source = GetPlayerServerId(PlayerId()),
         charinfo = { firstname = '', lastname = '', birthdate = '', nationality = '', gender = 0 },
         money = { cash = 0, bank = 0 },
-        metadata = { tracker = false, isdead = false, inlaststand = false, ishandcuffed = false, armor = 0 },
+        metadata = { tracker = false, isdead = false, inlaststand = false, ishandcuffed = false, armor = 0, licences = {} },
         job = { name = 'unemployed', label = 'Unemployed', type = 'none', onduty = false,
             payment = 0, isboss = false, grade = { name = 'Unemployed', level = 0 } },
         gang = { name = 'none', label = 'No Gang', isboss = false, grade = { name = 'none', level = 0 } }
@@ -79,9 +97,8 @@ local function buildPlayerData()
         registerSharedJob(base.job) registerSharedGang(base.gang) return base
     end
 
-    local metadata = exports['himo_core']:GetMetadata() or character.metadata or {}
-    local job = buildJob(character)
-    local gang = buildGang()
+    local metadata = exports.himo_core:GetMetadata() or character.metadata or {}
+    local job, gang = buildJob(character), buildGang()
     registerSharedJob(job) registerSharedGang(gang)
 
     base.citizenid = character.citizen_id or ''
@@ -98,8 +115,8 @@ local function buildPlayerData()
     base.metadata.inlaststand = metadata.inlaststand == true
     base.metadata.ishandcuffed = metadata.ishandcuffed == true
     base.metadata.armor = tonumber(character.armour or metadata.armor) or 0
-    base.job = job
-    base.gang = gang
+    base.metadata.licences = type(metadata.licences) == 'table' and metadata.licences or {}
+    base.job, base.gang = job, gang
     return base
 end
 
@@ -111,7 +128,8 @@ QBCore.Functions.GetPlayerData = function(cb)
 end
 QBCore.Functions.GetPlayer = function() return QBCore.Functions.GetPlayerData() end
 QBCore.Functions.Notify = function(text, notifyType, duration)
-    lib.notify({ description = tostring(text), type = notifyType or 'inform', duration = duration })
+    local description = type(text) == 'table' and (text.text or text.caption) or tostring(text)
+    lib.notify({ description = description, type = notifyType or 'inform', duration = duration })
 end
 QBCore.Functions.TriggerCallback = function(name, cb, ...)
     if type(name) ~= 'string' or type(cb) ~= 'function' then return end
@@ -125,14 +143,6 @@ RegisterNetEvent('QBCore:Client:TriggerCallback', function(name, ...)
     cb(...)
 end)
 
-QBCore.Shared.Gangs.none = { label = 'No Gang', grades = { [0] = { name = 'none', isboss = false } } }
-local initial = buildPlayerData()
-registerSharedJob(initial.job) registerSharedGang(initial.gang)
-
-local function qbExport(name, cb)
-    AddEventHandler(('__cfx_export_qb-core_%s'):format(name), function(setCB) setCB(cb) end)
-end
-qbExport('GetCoreObject', function() return QBCore end)
 exports('GetCoreObject', function() return QBCore end)
 
 local function pushPlayerData()
@@ -145,7 +155,6 @@ RegisterNetEvent('himo_core:client:characterLoaded', pushPlayerData)
 RegisterNetEvent('himo_core:client:moneyChanged', pushPlayerData)
 RegisterNetEvent('himo_core:client:metadataSnapshot', pushPlayerData)
 RegisterNetEvent('himo_core:client:metadataChanged', pushPlayerData)
-
 RegisterNetEvent('himo_core:client:jobsChanged', function()
     local oldJob = cachedPlayerData and cachedPlayerData.job or nil
     local data = pushPlayerData()
@@ -155,7 +164,6 @@ RegisterNetEvent('himo_core:client:jobsChanged', function()
         TriggerEvent('QBCore:Client:SetDuty', data.job.onduty)
     end
 end)
-
 RegisterNetEvent('himo_core:client:groupsChanged', function()
     local oldGang = cachedPlayerData and cachedPlayerData.gang or nil
     local data = pushPlayerData()
@@ -163,7 +171,6 @@ RegisterNetEvent('himo_core:client:groupsChanged', function()
         TriggerEvent('QBCore:Client:OnGangUpdate', data.gang)
     end
 end)
-
 RegisterNetEvent('himo_core:client:playerLoaded', function()
     pushPlayerData()
     TriggerEvent('QBCore:Client:OnPlayerLoaded')
