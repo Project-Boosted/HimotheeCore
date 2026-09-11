@@ -1,5 +1,17 @@
 local function core()
-    return exports['himo_qb_bridge']:GetCoreObject()
+    local object = exports['himo_qb_bridge']:GetCoreObject()
+    local authoritative = exports['himo_qb_bridge']:GetSharedCatalog()
+
+    object.Shared = object.Shared or {}
+    if type(authoritative) == 'table' then
+        for namespace, value in pairs(authoritative) do
+            if type(value) == 'table' then
+                object.Shared[namespace] = value
+            end
+        end
+    end
+
+    return object
 end
 
 exports('GetCoreObject', function()
