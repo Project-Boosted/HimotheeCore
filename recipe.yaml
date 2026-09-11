@@ -2,9 +2,9 @@ $engine: 3
 $onesync: on
 
 name: HimotheeCore
-version: 0.4.2
+version: 0.4.3
 author: HimotheeGaming
-description: Stage 1C core services with native account roles, ACE fallback, and stable multicharacter/spawn/Illenium lifecycle.
+description: Stage 1D compatibility layer with native HimotheeCore, QBCore/Qbox facades, Jim Bridge, and stable multicharacter/spawn/Illenium lifecycle.
 
 tasks:
   - action: download_github
@@ -28,6 +28,12 @@ tasks:
   - action: unzip
     src: ./tmp/oxmysql.zip
     dest: ./resources/[dependencies]
+
+  # Jimathy's bridge is pinned to the audited commit used by HimotheeCore v0.4.3.
+  - action: download_github
+    src: https://github.com/jimathy/jim_bridge
+    ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60
+    dest: ./resources/[dependencies]/jim_bridge
 
   - action: download_file
     url: https://github.com/iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip
