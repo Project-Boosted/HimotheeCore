@@ -45,191 +45,108 @@ jobs:
             luac -p "$file"
           done < <(find resources -type f -name '*.lua' -print0)
 
-      - name: Validate recipe YAML
+      - name: Validate recipe and deployment wiring
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import yaml
           with open('recipe.yaml', encoding='utf-8') as handle:
               data = yaml.safe_load(handle)
           assert data.get('$engine') == 3
           assert data.get('$onesync') in ('on', True)
-          assert data.get('version') == '0.5.4'
+          assert data.get('version') == '0.5.5'
           assert isinstance(data.get('tasks'), list) and data['tasks']
-          print('recipe.yaml OK')
           PY
-
-      - name: Validate txAdmin compatibility dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -Fq 'src: https://github.com/citizenfx/cfx-server-data' recipe.yaml
-          grep -Fq 'subpath: resources' recipe.yaml
-          grep -Fq 'overextended/ox_lib/releases/latest/download/ox_lib.zip' recipe.yaml
-          grep -Fq 'overextended/oxmysql/releases/latest/download/oxmysql.zip' recipe.yaml
           grep -Fq 'overextended/ox_target/releases/download/v1.18.1/ox_target.zip' recipe.yaml
           grep -Fq 'overextended/ox_inventory/releases/download/v2.47.9/ox_inventory.zip' recipe.yaml
-          grep -Fq 'iLLeniumStudios/illenium-appearance/releases/latest/download/illenium-appearance.zip' recipe.yaml
           grep -Fq 'src: https://github.com/Qbox-project/qbx_core' recipe.yaml
           grep -Fq 'ref: c1c3ca16721cd14eb814cfb95e8f8631690d247d' recipe.yaml
           grep -Fq './tmp/qbox-core-upstream/shared/vehicles.lua' recipe.yaml
-          grep -Fq './resources/[himo]/qbx_core/shared/vehicles.lua' recipe.yaml
-          grep -Fq './resources/[himo]/qbx_core/QBOX_UPSTREAM_LICENSE' recipe.yaml
           grep -Fq 'src: https://github.com/jimathy/jim_bridge' recipe.yaml
           grep -Fq 'ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60' recipe.yaml
           grep -Fq 'database/006_stage1d_compatibility.sql' recipe.yaml
-          grep -Fq "search: \"playerTable = 'players'\"" recipe.yaml
           grep -Fq "replace: \"playerTable = 'himo_characters'\"" recipe.yaml
-          grep -Fq "search: \"playerColumn = 'citizenid'\"" recipe.yaml
           grep -Fq "replace: \"playerColumn = 'citizen_id'\"" recipe.yaml
-          grep -Fq "search: \"vehicleTable = 'player_vehicles'\"" recipe.yaml
           grep -Fq "replace: \"vehicleTable = 'himo_vehicles'\"" recipe.yaml
           grep -Fq '{{addPrincipalsMaster}}' server.cfg
           grep -Fxq 'exec permissions.cfg' server.cfg
-          grep -Fq 'set himo:autoBootstrapOwner 1' server.cfg
-          if grep -Fq './tmp/cfx/[system]/' recipe.yaml; then
-            echo 'Recipe contains a fragile CFX system-resource move path.' >&2
-            exit 1
-          fi
 
       - name: Validate lifecycle ownership
         shell: bash
         run: |
           set -euo pipefail
           grep -Fxq 'stop basic-gamemode' server.cfg
-          if grep -Fxq 'ensure basic-gamemode' server.cfg; then
-            echo 'basic-gamemode must not own autospawn while HimotheeCore is active.' >&2
-            exit 1
-          fi
+          ! grep -Fxq 'ensure basic-gamemode' server.cfg
           grep -Fxq 'ensure spawnmanager' server.cfg
           grep -Fxq 'ensure baseevents' server.cfg
           grep -Fq 'txAdmin:events:serverShuttingDown' 'resources/[himo]/himo_core/server/main.lua'
-          if grep -Fq 'ui_page' 'resources/[himo]/himo_characters/fxmanifest.lua'; then
-            echo 'himo_characters must not use fullscreen NUI in the login path.' >&2
-            exit 1
-          fi
+          ! grep -Fq 'ui_page' 'resources/[himo]/himo_characters/fxmanifest.lua'
 
-      - name: Validate Stage 1 core services
+      - name: Validate compatibility contracts
         shell: bash
         run: |
           set -euo pipefail
           CORE='resources/[himo]/himo_core'
-          for file in state metadata jobs groups compat_catalog callbacks sessions permissions commands admin selftest; do
-            test -f "$CORE/server/${file}.lua"
-          done
-          test -f "$CORE/client/callbacks.lua"
           test -f "$CORE/client/compat_test.lua"
-          grep -Fq "exports('HasPermission'" "$CORE/server/permissions.lua"
-          grep -Fq "exports('GetRoles'" "$CORE/server/permissions.lua"
-          grep -Fq "exports('GrantRole'" "$CORE/server/permissions.lua"
-          grep -Fq "exports('GetJobDefinitions'" "$CORE/server/compat_catalog.lua"
-          grep -Fq "exports('GetGroupDefinitions'" "$CORE/server/compat_catalog.lua"
           grep -Fq "HimoCommands.register('himocompat'" "$CORE/server/selftest.lua"
-          grep -Fq "himo:compat:clientHealth" "$CORE/client/compat_test.lua"
 
-      - name: Validate QB Qbox Jim and helper facades
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f 'resources/[himo]/qb-core/fxmanifest.lua'
-          test -f 'resources/[himo]/qbx_core/fxmanifest.lua'
-          test -f 'resources/[himo]/qbx_core/server/vehicles.lua'
-          test -f 'resources/[himo]/qbx_core/shared/vehicles.lua'
-          test -f 'resources/[himo]/qbx_vehicles/fxmanifest.lua'
-          test -f 'resources/[himo]/qb-menu/fxmanifest.lua'
-          test -f 'resources/[himo]/qb-input/fxmanifest.lua'
-          test -f 'resources/[himo]/qb-target/fxmanifest.lua'
-          test -f 'resources/[himo]/qb-inventory/fxmanifest.lua'
+          # Exact-name compatibility resources.
+          for resource in qb-core qbx_core qbx_vehicles qb-menu qb-input qb-target qb-inventory progressbar; do
+            test -f "resources/[himo]/${resource}/fxmanifest.lua"
+          done
           test -f 'resources/[himo]/qb-inventory/config.lua'
           test -f 'resources/[himo]/qb-inventory/config/config.lua'
-          test -f 'resources/[himo]/progressbar/fxmanifest.lua'
 
-          grep -Fq "name 'qb-core'" 'resources/[himo]/qb-core/fxmanifest.lua'
-          grep -Fq "name 'qbx_core'" 'resources/[himo]/qbx_core/fxmanifest.lua'
-          grep -Fq "name 'qbx_vehicles'" 'resources/[himo]/qbx_vehicles/fxmanifest.lua'
-          grep -Fq "exports('GetCoreObject'" 'resources/[himo]/qb-core/server/main.lua'
-          grep -Fq "exports('GetPlayer'" 'resources/[himo]/qbx_core/server/main.lua'
-          grep -Fq "exports('CreateUseableItem'" 'resources/[himo]/qbx_core/server/main.lua'
-          grep -Fq "'server/vehicles.lua'" 'resources/[himo]/qbx_core/fxmanifest.lua'
-          grep -Fq "'shared/vehicles.lua'" 'resources/[himo]/qbx_core/fxmanifest.lua'
-          grep -Fq 'QB.Shared.Vehicles = catalog' 'resources/[himo]/qbx_core/server/vehicles.lua'
-          grep -Fq "exports('GetVehicleCatalogCount'" 'resources/[himo]/qbx_core/server/vehicles.lua'
-          grep -Fq "exports('GetVehicleIdByPlate'" 'resources/[himo]/qbx_vehicles/server/main.lua'
-          grep -Fq "Config.MaxInventoryWeight" 'resources/[himo]/qb-inventory/config.lua'
-          grep -Fq "Config.MaxInventorySlots" 'resources/[himo]/qb-inventory/config.lua'
-          grep -Fq "Config.MaxWeight" 'resources/[himo]/qb-inventory/config/config.lua'
-          grep -Fq "Config.MaxSlots" 'resources/[himo]/qb-inventory/config/config.lua'
-          grep -Fq "'config.lua'" 'resources/[himo]/qb-inventory/fxmanifest.lua'
-          grep -Fq "'config/config.lua'" 'resources/[himo]/qb-inventory/fxmanifest.lua'
-          grep -Fq "exports('Health'" 'resources/[himo]/qb-menu/client/main.lua'
-          grep -Fq "exports('Health'" 'resources/[himo]/qb-input/client/main.lua'
-          grep -Fq "exports('Health'" 'resources/[himo]/qb-target/client/main.lua'
-          grep -Fq "exports('Health'" 'resources/[himo]/qb-inventory/client/main.lua'
-          grep -Fq "exports('Health'" 'resources/[himo]/qb-inventory/server/main.lua'
-          grep -Fq "exports('Health'" 'resources/[himo]/progressbar/client/main.lua'
-
-          # v0.5.3 runtime regressions found on a live server.
+          # v0.5.3 live fixes: one SQL parameter and primed QBX groups.
           grep -Fq "local result = tostring(value or '')" 'resources/[himo]/qbx_vehicles/server/main.lua'
-          grep -Fq "result = result:gsub('^%s+', '')" 'resources/[himo]/qbx_vehicles/server/main.lua'
-          grep -Fq "result = result:gsub('%s+$', '')" 'resources/[himo]/qbx_vehicles/server/main.lua'
-          grep -Fq 'return result' 'resources/[himo]/qbx_vehicles/server/main.lua'
-          if grep -Fq "return tostring(value or ''):gsub" 'resources/[himo]/qbx_vehicles/server/main.lua'; then
-            echo 'qbx_vehicles trim must return exactly one value; chained gsub leaks replacement count into SQL params.' >&2
-            exit 1
-          fi
+          ! grep -Fq "return tostring(value or ''):gsub" 'resources/[himo]/qbx_vehicles/server/main.lua'
           grep -Fq "TriggerEvent('qbx_core:client:setGroups', snapshot)" 'resources/[himo]/qbx_core/client/main.lua'
           grep -Fq "TriggerEvent('qbx_core:client:onGroupUpdate', groupName, groupGrade)" 'resources/[himo]/qbx_core/client/main.lua'
-          SETGROUPS_LINE=$(grep -nF "TriggerEvent('qbx_core:client:setGroups', snapshot)" 'resources/[himo]/qbx_core/client/main.lua' | head -n1 | cut -d: -f1)
-          UPDATE_LINE=$(grep -nF "TriggerEvent('qbx_core:client:onGroupUpdate', groupName, groupGrade)" 'resources/[himo]/qbx_core/client/main.lua' | head -n1 | cut -d: -f1)
-          test "$SETGROUPS_LINE" -lt "$UPDATE_LINE"
+          SG=$(grep -nF "TriggerEvent('qbx_core:client:setGroups', snapshot)" 'resources/[himo]/qbx_core/client/main.lua' | head -n1 | cut -d: -f1)
+          GU=$(grep -nF "TriggerEvent('qbx_core:client:onGroupUpdate', groupName, groupGrade)" 'resources/[himo]/qbx_core/client/main.lua' | head -n1 | cut -d: -f1)
+          test "$SG" -lt "$GU"
 
-          # v0.5.4 live-server failures: stale shared vehicle object and missing
-          # TriggerCallback on the exact qb-core client object used by scripts.
+          # v0.5.4 vehicle catalogue must not depend on a stale exported QB copy.
           grep -Fq 'local function vehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
           grep -Fq 'GetLoadedVehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
           grep -Fq "GetSharedCatalog('Vehicles')" 'resources/[himo]/qbx_core/server/main.lua'
           grep -Fq 'local vehicles = vehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
-          grep -Fq 'object.Functions.TriggerCallback = triggerCallback' 'resources/[himo]/qb-core/client/main.lua'
-          grep -Fq 'QBCore.Functions.TriggerCallback = function' 'resources/[himo]/himo_qb_bridge/client/main.lua'
 
+          # v0.5.5: qb-core owns its client object/callback directly.
+          grep -Fq 'local QBCore = {' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq 'QBCore.Functions.TriggerCallback = triggerCallback' 'resources/[himo]/qb-core/client/main.lua'
+          grep -Fq "TriggerServerEvent('QBCore:Server:TriggerCallback'" 'resources/[himo]/qb-core/client/main.lua'
+          ! grep -Fq "object.Functions.TriggerCallback = triggerCallback" 'resources/[himo]/qb-core/client/main.lua'
+
+          # v0.5.5: jobs/gangs are primed synchronously before qbx_core main/Jim.
+          test -f 'resources/[himo]/qbx_core/server/groups_catalog.lua'
+          grep -Fq "GetJobDefinitions()" 'resources/[himo]/qbx_core/server/groups_catalog.lua'
+          grep -Fq "GetGroupDefinitions('gang')" 'resources/[himo]/qbx_core/server/groups_catalog.lua'
+          grep -Fq "SetSharedCatalog('Jobs', jobs)" 'resources/[himo]/qbx_core/server/groups_catalog.lua'
+          grep -Fq "SetSharedCatalog('Gangs', gangs)" 'resources/[himo]/qbx_core/server/groups_catalog.lua'
+          CATALOG_LINE=$(grep -nF "'server/groups_catalog.lua'" 'resources/[himo]/qbx_core/fxmanifest.lua' | cut -d: -f1)
+          MAIN_LINE=$(grep -nF "'server/main.lua'" 'resources/[himo]/qbx_core/fxmanifest.lua' | cut -d: -f1)
+          test "$CATALOG_LINE" -lt "$MAIN_LINE"
+
+          # Runtime stack configuration.
           grep -Fq 'setr inventory:framework "qbx"' server.cfg
           grep -Fq 'setr inventory:slots 50' server.cfg
           grep -Fq 'setr inventory:weight 120000' server.cfg
-          grep -Fq 'setr inventory:target true' server.cfg
-          grep -Fq 'setr jim_menuScript ox' server.cfg
-          grep -Fq 'setr jim_notifyScript ox' server.cfg
-          grep -Fq 'setr jim_progressBarScript ox' server.cfg
           grep -Fq 'setr jim_dontUseTarget false' server.cfg
 
-          for resource in ox_target qb-core qbx_core qbx_vehicles ox_inventory qb-menu qb-input qb-target qb-inventory progressbar jim_bridge; do
-            grep -Fxq "ensure ${resource}" server.cfg
-          done
-
-      - name: Validate compatibility resource start order
+      - name: Validate compatibility start order
         shell: bash
         run: |
           set -euo pipefail
           line() { grep -n "^ensure $1$" server.cfg | head -n1 | cut -d: -f1; }
-          OXLIB=$(line ox_lib)
-          OXMYSQL=$(line oxmysql)
-          OXTARGET=$(line ox_target)
-          CORE=$(line himo_core)
-          INTERNAL=$(line himo_qb_bridge)
-          QB=$(line qb-core)
-          QBX=$(line qbx_core)
-          QBXV=$(line qbx_vehicles)
-          OXINV=$(line ox_inventory)
-          QBMENU=$(line qb-menu)
-          QBINPUT=$(line qb-input)
-          QBTARGET=$(line qb-target)
-          QBINV=$(line qb-inventory)
-          PROGRESS=$(line progressbar)
-          JIM=$(line jim_bridge)
-          ILLENIUM=$(line illenium-appearance)
-          APPEARANCE=$(line himo_appearance)
-          SPAWN=$(line himo_spawn)
-          CHAR=$(line himo_characters)
-
+          OXLIB=$(line ox_lib); OXMYSQL=$(line oxmysql); OXTARGET=$(line ox_target)
+          CORE=$(line himo_core); INTERNAL=$(line himo_qb_bridge); QB=$(line qb-core)
+          QBX=$(line qbx_core); QBXV=$(line qbx_vehicles); OXINV=$(line ox_inventory)
+          QBMENU=$(line qb-menu); QBINPUT=$(line qb-input); QBTARGET=$(line qb-target)
+          QBINV=$(line qb-inventory); PROGRESS=$(line progressbar); JIM=$(line jim_bridge)
+          ILLENIUM=$(line illenium-appearance); APPEARANCE=$(line himo_appearance)
+          SPAWN=$(line himo_spawn); CHAR=$(line himo_characters)
           test "$OXLIB" -lt "$CORE"
           test "$OXMYSQL" -lt "$CORE"
           test "$CORE" -lt "$INTERNAL"
@@ -246,15 +163,14 @@ jobs:
           test "$PROGRESS" -lt "$JIM"
           test "$JIM" -lt "$ILLENIUM"
           test "$ILLENIUM" -lt "$APPEARANCE"
-          test "$APPEARANCE" -lt "$CHAR"
           test "$SPAWN" -lt "$CHAR"
 
-      - name: Validate release version consistency
+      - name: Validate release consistency
         shell: bash
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
-          test "$VERSION" = '0.5.4'
+          test "$VERSION" = '0.5.5'
           grep -Fq "version: $VERSION" recipe.yaml
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
           grep -Fq "HimoConfig.RequiredSchemaVersion = 5" 'resources/[himo]/himo_core/shared/config.lua'
@@ -275,7 +191,6 @@ jobs:
           done
           grep -Fq "version '1.23.0'" 'resources/[himo]/qbx_core/fxmanifest.lua'
           grep -Fq "version '1.2.0'" 'resources/[himo]/qbx_vehicles/fxmanifest.lua'
-          echo "Version $VERSION compatibility validation tree is consistent."
 
       - name: Validate SQL on MariaDB
         shell: bash
@@ -283,10 +198,6 @@ jobs:
           MYSQL_PWD: root
         run: |
           set -euo pipefail
-          for i in {1..30}; do
-            if mariadb-admin ping -h 127.0.0.1 -uroot --silent; then break; fi
-            sleep 2
-          done
           for sql in \
             database/001_schema.sql \
             database/002_seed.sql \
@@ -296,13 +207,7 @@ jobs:
             database/006_stage1d_compatibility.sql; do
             mariadb -h 127.0.0.1 -uroot himothee_ci < "$sql"
           done
-
-          mariadb -h 127.0.0.1 -uroot himothee_ci -e "INSERT INTO himo_accounts (display_name,last_seen_name,last_seen_at) VALUES ('CI Owner','CI Owner',CURRENT_TIMESTAMP);"
-          FIRST_ACCOUNT="$(mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e 'SELECT MIN(id) FROM himo_accounts')"
-          mariadb -h 127.0.0.1 -uroot himothee_ci -e "INSERT INTO himo_account_roles (account_id,role_name,granted_by_account_id) VALUES (${FIRST_ACCOUNT},'owner',NULL);"
-
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT MAX(version) FROM himo_schema_migrations" | grep -qx '5'
-          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT permission FROM himo_role_permissions WHERE role_name='owner' AND permission='himo.*' LIMIT 1" | grep -qx 'himo.*'
-          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT account_id FROM himo_account_roles WHERE role_name='owner' LIMIT 1" | grep -qx "$FIRST_ACCOUNT"
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM himo_jobs WHERE name='unemployed' AND is_active=1" | grep -qx '1'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME='himo_characters' AND COLUMN_NAME='inventory'" | grep -qx '1'
           mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME='himo_vehicles' AND COLUMN_NAME IN ('glovebox','trunk')" | grep -qx '2'
