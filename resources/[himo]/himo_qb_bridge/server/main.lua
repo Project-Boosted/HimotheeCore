@@ -1,7 +1,17 @@
 local QBCore = {
     Functions = {},
     Shared = {
-        Jobs = {},
+        Items = {},
+        Vehicles = {},
+        Weapons = {},
+        Locations = {},
+        StarterItems = {},
+        Jobs = {
+            unemployed = {
+                label = 'Unemployed', type = 'none', defaultDuty = false,
+                grades = { [0] = { name = 'Unemployed', payment = 0, isboss = false } }
+            }
+        },
         Gangs = {
             none = { label = 'No Gang', grades = { [0] = { name = 'none', isboss = false } } }
         }
@@ -39,7 +49,7 @@ local function buildJob(character)
     }
 end
 local function buildGang(source)
-    local row = exports['himo_core']:GetPrimaryGroup(source, 'gang')
+    local row = exports.himo_core:GetPrimaryGroup(source, 'gang')
     if not row or row.group_name == 'none' then
         return { name = 'none', label = 'No Gang', isboss = false, grade = { name = 'none', level = 0 } }
     end
@@ -69,10 +79,8 @@ end
 
 local function buildPlayerData(source, character)
     local metadata = type(character.metadata) == 'table' and character.metadata or {}
-    local job = buildJob(character)
-    local gang = buildGang(source)
-    registerSharedJob(job)
-    registerSharedGang(gang)
+    local job, gang = buildJob(character), buildGang(source)
+    registerSharedJob(job) registerSharedGang(gang)
 
     local qbMetadata = {}
     for key, value in pairs(metadata) do qbMetadata[key] = value end
@@ -81,6 +89,7 @@ local function buildPlayerData(source, character)
     qbMetadata.inlaststand = metadata.inlaststand == true
     qbMetadata.ishandcuffed = metadata.ishandcuffed == true
     qbMetadata.armor = tonumber(character.armour or metadata.armor) or 0
+    qbMetadata.licences = type(metadata.licences) == 'table' and metadata.licences or {}
 
     return {
         source = source, citizenid = character.citizen_id,
@@ -96,13 +105,13 @@ end
 
 local function wrapPlayer(source)
     source = tonumber(source) or source
-    local character = exports['himo_core']:GetCharacter(source)
-    local himoPlayer = exports['himo_core']:GetPlayer(source)
+    local character = exports.himo_core:GetCharacter(source)
+    local himoPlayer = exports.himo_core:GetPlayer(source)
     if not character or not himoPlayer then return nil end
 
     local wrapper = { PlayerData = buildPlayerData(source, character), Functions = {} }
     local function refresh()
-        local latest = exports['himo_core']:GetCharacter(source)
+        local latest = exports.himo_core:GetCharacter(source)
         if latest then wrapper.PlayerData = buildPlayerData(source, latest) end
     end
 
@@ -152,14 +161,14 @@ QBCore.Functions.GetPlayerByCitizenId = function(citizenId)
     citizenId = tostring(citizenId or '')
     for _, source in ipairs(GetPlayers()) do
         local numericSource = tonumber(source)
-        local character = exports['himo_core']:GetCharacter(numericSource)
+        local character = exports.himo_core:GetCharacter(numericSource)
         if character and character.citizen_id == citizenId then return wrapPlayer(numericSource) end
     end
 end
 QBCore.Functions.HasPermission = function(source, permission)
     permission = tostring(permission or ''):lower()
     if permission == 'god' then permission = 'admin' end
-    return exports['himo_core']:HasPermission(source, permission)
+    return exports.himo_core:HasPermission(source, permission)
 end
 QBCore.Functions.CreateCallback = function(name, cb)
     if type(name) == 'string' and type(cb) == 'function' then QBCore.ServerCallbacks[name] = cb end
@@ -172,10 +181,6 @@ RegisterNetEvent('QBCore:Server:TriggerCallback', function(name, ...)
     callback(src, function(...) TriggerClientEvent('QBCore:Client:TriggerCallback', src, name, ...) end, ...)
 end)
 
-local function qbExport(name, cb)
-    AddEventHandler(('__cfx_export_qb-core_%s'):format(name), function(setCB) setCB(cb) end)
-end
-qbExport('GetCoreObject', function() return QBCore end)
 exports('GetCoreObject', function() return QBCore end)
 
 AddEventHandler('himo_core:server:playerLoaded', function(source) TriggerEvent('QBCore:Server:OnPlayerLoaded', source) end)
