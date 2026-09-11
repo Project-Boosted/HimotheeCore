@@ -1,0 +1,134 @@
+name: Validate txAdmin SQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  txadmin-sql:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: himothee_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install mysql2
+        run: npm install --no-save mysql2
+
+      - name: Validate Stage 1E contains no CLI delimiters
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Fq 'DELIMITER' database/007_stage1e_project_sloth.sql
+          grep -Fq 'trg_himo_players_metadata_writeback' database/007_stage1e_project_sloth.sql
+          grep -Fq 'trg_himo_players_inventory_writeback' database/007_stage1e_project_sloth.sql
+          grep -Fq 'trg_himo_player_vehicles_writeback' database/007_stage1e_project_sloth.sql
+
+      - name: Fetch and normalize ps-mdt 3.1.4 SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            https://raw.githubusercontent.com/Project-Sloth/ps-mdt/0be47ae0b76c9af8e0bf5dc9c4dc369b1587e476/sql/qbcore.sql \
+            -o /tmp/ps-mdt-qbcore.sql
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/ps-mdt-qbcore.sql')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('DELIMITER //', '')
+          s = s.replace('FOR EACH ROW BEGIN', 'FOR EACH ROW')
+          s = s.replace('END//', '')
+          s = s.replace('DELIMITER ;', '')
+          s = s.replace('CREATE TRIGGER `mdt_reports_charges_after_delete`', 'CREATE OR REPLACE TRIGGER `mdt_reports_charges_after_delete`')
+          s = s.replace('CREATE TRIGGER `mdt_reports_charges_after_insert`', 'CREATE OR REPLACE TRIGGER `mdt_reports_charges_after_insert`')
+          p.write_text(s, encoding='utf-8')
+          PY
+          ! grep -Fq 'DELIMITER' /tmp/ps-mdt-qbcore.sql
+          ! grep -Fq 'FOR EACH ROW BEGIN' /tmp/ps-mdt-qbcore.sql
+          grep -Fq 'CREATE OR REPLACE TRIGGER `mdt_reports_charges_after_delete`' /tmp/ps-mdt-qbcore.sql
+          grep -Fq 'CREATE OR REPLACE TRIGGER `mdt_reports_charges_after_insert`' /tmp/ps-mdt-qbcore.sql
+
+      - name: Execute SQL through mysql2 like txAdmin
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_USER: root
+          MYSQL_PASSWORD: root
+          MYSQL_DATABASE: himothee_ci
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const mysql = require('mysql2/promise');
+
+          (async () => {
+            const db = await mysql.createConnection({
+              host: process.env.MYSQL_HOST,
+              user: process.env.MYSQL_USER,
+              password: process.env.MYSQL_PASSWORD,
+              database: process.env.MYSQL_DATABASE,
+              multipleStatements: true,
+            });
+
+            const run = async (file) => {
+              const sql = fs.readFileSync(file, 'utf8');
+              await db.query(sql);
+            };
+
+            for (const file of [
+              'database/001_schema.sql',
+              'database/002_seed.sql',
+              'database/003_stage1b_lifecycle.sql',
+              'database/004_stage1c_core_services.sql',
+              'database/005_stage1c_account_roles.sql',
+              'database/006_stage1d_compatibility.sql',
+              'database/007_stage1e_project_sloth.sql',
+              'database/vendor/ps_housing.sql',
+              '/tmp/ps-mdt-qbcore.sql',
+            ]) {
+              await run(file);
+            }
+
+            // Prove the Stage 1E + MDT path is redeploy-safe.
+            await run('database/007_stage1e_project_sloth.sql');
+            await run('database/vendor/ps_housing.sql');
+            await run('/tmp/ps-mdt-qbcore.sql');
+
+            const [rows] = await db.query(`
+              SELECT TRIGGER_NAME
+              FROM information_schema.TRIGGERS
+              WHERE TRIGGER_SCHEMA = DATABASE()
+                AND TRIGGER_NAME IN (
+                  'trg_himo_players_metadata_writeback',
+                  'trg_himo_players_inventory_writeback',
+                  'trg_himo_player_vehicles_writeback',
+                  'mdt_reports_charges_after_delete',
+                  'mdt_reports_charges_after_insert'
+                )
+            `);
+            if (rows.length !== 5) {
+              throw new Error(`Expected 5 Stage 1E/MDT triggers, found ${rows.length}`);
+            }
+
+            await db.end();
+          })().catch((err) => {
+            console.error(err);
+            process.exit(1);
+          });
+          NODE
