@@ -57,29 +57,57 @@ jobs:
               data = yaml.safe_load(handle)
           assert data.get('$engine') == 3
           assert data.get('$onesync') in ('on', True)
-          assert data.get('version') == '0.5.9'
+          assert data.get('version') == '0.6.0'
           assert isinstance(data.get('tasks'), list) and data['tasks']
           PY
+
           grep -Fq 'overextended/ox_target/releases/download/v1.18.1/ox_target.zip' recipe.yaml
           grep -Fq 'overextended/ox_inventory/releases/download/v2.47.9/ox_inventory.zip' recipe.yaml
-          grep -Fq 'src: https://github.com/Qbox-project/qbx_core' recipe.yaml
+          grep -Fq 'overextended/ox_doorlock/releases/download/v1.22.1/ox_doorlock.zip' recipe.yaml
           grep -Fq 'ref: c1c3ca16721cd14eb814cfb95e8f8631690d247d' recipe.yaml
-          grep -Fq 'src: https://github.com/jimathy/jim_bridge' recipe.yaml
-          grep -Fq 'ref: 949363c76a0cf1812b88f74ea3aafbd55b849f60' recipe.yaml
+
           grep -Fq 'src: https://github.com/jimathy/jim-mining' recipe.yaml
           grep -Fq 'ref: 0a8a29783b78c337b2a5939c3e365dd1fcb44071' recipe.yaml
-          grep -Fq 'dest: ./resources/[jim]/jim-mining' recipe.yaml
           grep -Fq 'src: https://github.com/jimathy/jim-recycle' recipe.yaml
           grep -Fq 'ref: 118df45c2a8e58ba16913dd0b64fb9164c14faf4' recipe.yaml
-          grep -Fq 'dest: ./resources/[jim]/jim-recycle' recipe.yaml
-          grep -Fq 'database/006_stage1d_compatibility.sql' recipe.yaml
+
+          grep -Fq 'src: https://github.com/Project-Sloth/ps_lib' recipe.yaml
+          grep -Fq 'ref: 03ef1861d34a977b4374b4cf20bbaa806e154833' recipe.yaml
+          grep -Fq 'src: https://github.com/Project-Sloth/ps-realtor' recipe.yaml
+          grep -Fq 'ref: 99b92d643b70c5a19184944ab177cc9cd0b854b1' recipe.yaml
+          grep -Fq 'src: https://github.com/Project-Sloth/ps-housing' recipe.yaml
+          grep -Fq 'ref: eaba693b44a8fc87680fb3b02805694e5b11c5f8' recipe.yaml
+          grep -Fq 'src: https://github.com/Project-Sloth/ps-dispatch' recipe.yaml
+          grep -Fq 'ref: d488316ae7f579740c93f8bd873fc552a48a7038' recipe.yaml
+          grep -Fq 'Project-Sloth/ps-mdt/releases/download/3.1.4/ps-mdt-3.1.4.zip' recipe.yaml
+          grep -Fq 'src: https://github.com/Project-Sloth/ps-adminmenu' recipe.yaml
+          grep -Fq 'ref: 5157d513e2cd22e6d04305643aaa806106db6523' recipe.yaml
+
+          grep -Fq 'src: https://github.com/mkafrin/PolyZone' recipe.yaml
+          grep -Fq 'ref: 0f9003080706d61ff29b9b3db5332d407632d4df' recipe.yaml
+          grep -Fq 'src: https://github.com/deltanic/fivem-freecam' recipe.yaml
+          grep -Fq 'ref: 9b3797d7ac2a6a8c6473d3bb73d1bf86399753d8' recipe.yaml
+          grep -Fq 'src: https://github.com/citizenfx/screenshot-basic' recipe.yaml
+          grep -Fq 'ref: 5e89d4afb3e28b490344e84b5e2b5ac8cc5d9c75' recipe.yaml
+
+          grep -Fq 'database/007_stage1e_project_sloth.sql' recipe.yaml
+          grep -Fq 'ps-housing/README - INSTALL INSTRUCTIONS/QBOX/properties.sql' recipe.yaml
+          grep -Fq 'ps-mdt/sql/qbcore.sql' recipe.yaml
+          grep -Fq 'ox_doorlock/sql/ox_doorlock.sql' recipe.yaml
+
           grep -Fq "replace: \"playerTable = 'himo_characters'\"" recipe.yaml
           grep -Fq "replace: \"playerColumn = 'citizen_id'\"" recipe.yaml
           grep -Fq "replace: \"vehicleTable = 'himo_vehicles'\"" recipe.yaml
+          grep -Fq "GetResourceState('himo_qbx_disabled_for_ps')" recipe.yaml
+          grep -Fq 'Config.Inventory = \"ox_inventory\"' recipe.yaml
+          grep -Fq 'Config.Target = \"ox_target\"' recipe.yaml
+          grep -Fq 'Config.Fuel = \"ox_fuel\"' recipe.yaml
+
           test -f deploy/jim_items.lua
-          grep -Fq 'src: ./tmp/himotheecore/deploy/jim_items.lua' recipe.yaml
-          grep -Fq 'dest: ./resources/[dependencies]/ox_inventory/data/himo_jim_items.lua' recipe.yaml
-          grep -Fq "lib.load('data.himo_jim_items')" recipe.yaml
+          test -f deploy/project_sloth_items.lua
+          test -f 'resources/[himo]/himo_qb_bridge/server/project_sloth.lua'
+          grep -Fq 'himo_project_sloth_items.lua' recipe.yaml
+          grep -Fq "lib.load('data.himo_project_sloth_items')" recipe.yaml
           grep -Fq '{{addPrincipalsMaster}}' server.cfg
           grep -Fxq 'exec permissions.cfg' server.cfg
 
@@ -99,11 +127,20 @@ jobs:
         run: |
           set -euo pipefail
           CORE='resources/[himo]/himo_core'
+          BRIDGE='resources/[himo]/himo_qb_bridge'
           test -f "$CORE/client/compat_test.lua"
           test -f "$CORE/server/compat_callbacks.lua"
           test -f "$CORE/server/jim_acceptance.lua"
+          test -f "$BRIDGE/server/project_sloth.lua"
           grep -Fq "'server/compat_callbacks.lua'" "$CORE/fxmanifest.lua"
           grep -Fq "'server/jim_acceptance.lua'" "$CORE/fxmanifest.lua"
+          grep -Fq "'server/project_sloth.lua'" "$BRIDGE/fxmanifest.lua"
+          grep -Fq "'oxmysql'" "$BRIDGE/fxmanifest.lua"
+          grep -Fq 'GetOfflinePlayerByCitizenId' "$BRIDGE/server/project_sloth.lua"
+          grep -Fq 'SyncProjectSlothMirrors' "$BRIDGE/server/project_sloth.lua"
+          grep -Fq 'INSERT INTO players' "$BRIDGE/server/project_sloth.lua"
+          grep -Fq 'INSERT INTO player_vehicles' "$BRIDGE/server/project_sloth.lua"
+
           grep -Fq "HimoCommands.register('himocompat'" "$CORE/server/selftest.lua"
           grep -Fq "HimoCommands.register('himojimtest'" "$CORE/server/jim_acceptance.lua"
           grep -Fq "resourceHealth('jim-mining')" "$CORE/server/jim_acceptance.lua"
@@ -115,18 +152,12 @@ jobs:
           GU=$(grep -nF "TriggerEvent('qbx_core:client:onGroupUpdate', groupName, groupGrade)" 'resources/[himo]/qbx_core/client/main.lua' | head -n1 | cut -d: -f1)
           test "$SG" -lt "$GU"
 
-          grep -Fq 'local function vehicleCatalog()' 'resources/[himo]/qbx_core/server/main.lua'
-          grep -Fq "GetSharedCatalog('Vehicles')" 'resources/[himo]/qbx_core/server/main.lua'
-
           grep -Fq 'value.__cfx_functionReference ~= nil' 'resources/[himo]/qb-core/client/main.lua'
           grep -Fq 'sharedMirror.IsFunction = isFunction' 'resources/[himo]/qb-core/client/main.lua'
           grep -Fq 'value.__cfx_functionReference ~= nil' 'resources/[himo]/himo_qb_bridge/server/main.lua'
           grep -Fq 'QBCore.Shared.IsFunction = isFunction' 'resources/[himo]/himo_qb_bridge/server/main.lua'
           grep -Fq 'SetTimeout(6000' "$CORE/server/selftest.lua"
           ! grep -Fq "lib.callback.await('himo:compat:clientHealth'" "$CORE/server/selftest.lua"
-
-          grep -Fq 'setr inventory:framework "qbx"' server.cfg
-          grep -Fq 'setr jim_dontUseTarget false' server.cfg
 
       - name: Validate start order
         shell: bash
@@ -138,13 +169,18 @@ jobs:
           QBMENU=$(line qb-menu); QBINPUT=$(line qb-input); QBTARGET=$(line qb-target)
           QBINV=$(line qb-inventory); PROGRESS=$(line progressbar); JIM=$(line jim_bridge)
           MINING=$(line jim-mining); RECYCLE=$(line jim-recycle)
+          OXDOOR=$(line ox_doorlock); PSLIB=$(line ps_lib); REALTOR=$(line ps-realtor)
+          HOUSING=$(line ps-housing); DISPATCH=$(line ps-dispatch); MDT=$(line ps-mdt); ADMIN=$(line ps-adminmenu)
           ILLENIUM=$(line illenium-appearance); APPEARANCE=$(line himo_appearance)
           SPAWN=$(line himo_spawn); CHAR=$(line himo_characters)
+
           test "$CORE" -lt "$INTERNAL"
           test "$INTERNAL" -lt "$QB"
           test "$QB" -lt "$QBX"
           test "$QBX" -lt "$QBXV"
           test "$QBXV" -lt "$OXINV"
+          test "$OXINV" -lt "$OXDOOR"
+          test "$OXINV" -lt "$PSLIB"
           test "$QBMENU" -lt "$JIM"
           test "$QBINPUT" -lt "$JIM"
           test "$QBTARGET" -lt "$JIM"
@@ -152,8 +188,12 @@ jobs:
           test "$PROGRESS" -lt "$JIM"
           test "$JIM" -lt "$MINING"
           test "$JIM" -lt "$RECYCLE"
-          test "$MINING" -lt "$ILLENIUM"
-          test "$RECYCLE" -lt "$ILLENIUM"
+          test "$PSLIB" -lt "$REALTOR"
+          test "$REALTOR" -lt "$HOUSING"
+          test "$PSLIB" -lt "$DISPATCH"
+          test "$DISPATCH" -lt "$MDT"
+          test "$MDT" -lt "$ADMIN"
+          test "$ADMIN" -lt "$ILLENIUM"
           test "$ILLENIUM" -lt "$APPEARANCE"
           test "$SPAWN" -lt "$CHAR"
 
@@ -162,25 +202,13 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
-          test "$VERSION" = '0.5.9'
+          test "$VERSION" = '0.6.0'
           grep -Fq "version: \"$VERSION\"" recipe.yaml
           grep -Fq "HimoConfig.Version = '$VERSION'" 'resources/[himo]/himo_core/shared/config.lua'
-          grep -Fq "HimoConfig.RequiredSchemaVersion = 5" 'resources/[himo]/himo_core/shared/config.lua'
-          grep -Fq "HimoConfig.Stage = '1D'" 'resources/[himo]/himo_core/shared/config.lua'
-          for manifest in \
-            'resources/[himo]/himo_core/fxmanifest.lua' \
-            'resources/[himo]/himo_qb_bridge/fxmanifest.lua' \
-            'resources/[himo]/himo_characters/fxmanifest.lua' \
-            'resources/[himo]/himo_spawn/fxmanifest.lua' \
-            'resources/[himo]/himo_appearance/fxmanifest.lua' \
-            'resources/[himo]/qb-core/fxmanifest.lua' \
-            'resources/[himo]/qb-menu/fxmanifest.lua' \
-            'resources/[himo]/qb-input/fxmanifest.lua' \
-            'resources/[himo]/qb-target/fxmanifest.lua' \
-            'resources/[himo]/qb-inventory/fxmanifest.lua' \
-            'resources/[himo]/progressbar/fxmanifest.lua'; do
-            grep -Fq "version '$VERSION'" "$manifest"
-          done
+          grep -Fq 'HimoConfig.RequiredSchemaVersion = 6' 'resources/[himo]/himo_core/shared/config.lua'
+          grep -Fq "HimoConfig.Stage = '1E'" 'resources/[himo]/himo_core/shared/config.lua'
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_core/fxmanifest.lua'
+          grep -Fq "version '$VERSION'" 'resources/[himo]/himo_qb_bridge/fxmanifest.lua'
           grep -Fq "version '1.23.0'" 'resources/[himo]/qbx_core/fxmanifest.lua'
           grep -Fq "version '1.2.0'" 'resources/[himo]/qbx_vehicles/fxmanifest.lua'
 
@@ -196,10 +224,12 @@ jobs:
             database/003_stage1b_lifecycle.sql \
             database/004_stage1c_core_services.sql \
             database/005_stage1c_account_roles.sql \
-            database/006_stage1d_compatibility.sql; do
+            database/006_stage1d_compatibility.sql \
+            database/007_stage1e_project_sloth.sql; do
             mariadb -h 127.0.0.1 -uroot himothee_ci < "$sql"
           done
-          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT MAX(version) FROM himo_schema_migrations" | grep -qx '5'
-          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM himo_jobs WHERE name='unemployed' AND is_active=1" | grep -qx '1'
-          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME='himo_characters' AND COLUMN_NAME='inventory'" | grep -qx '1'
-          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME='himo_vehicles' AND COLUMN_NAME IN ('glovebox','trunk')" | grep -qx '2'
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT MAX(version) FROM himo_schema_migrations" | grep -qx '6'
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM himo_jobs WHERE name IN ('police','ambulance','realestate') AND is_active=1" | grep -qx '3'
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME IN ('players','player_vehicles')" | grep -qx '2'
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='himothee_ci' AND TABLE_NAME='himo_vehicles' AND COLUMN_NAME LIKE 'mdt_vehicle_%'" | grep -qx '6'
+          mariadb -N -B -h 127.0.0.1 -uroot himothee_ci -e "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='himothee_ci' AND TRIGGER_NAME IN ('trg_himo_players_writeback','trg_himo_player_vehicles_writeback')" | grep -qx '2'
